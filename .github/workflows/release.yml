@@ -1,0 +1,93 @@
+name: Release
+
+# Pushing a tag like `v1.2.0` builds, signs and publishes AI-Session-Radar.zip as a GitHub
+# release. The in-app updater installs that archive only when it is signed by the same Apple
+# team as the copy already installed, so this workflow refuses to publish an unsigned build:
+# one would be announced to every user and then rejected by every one of them.
+#
+# Needs two repository secrets:
+#   SIGNING_CERTIFICATE_P12       base64 of a .p12 export of an Apple Development or
+#                                 Developer ID Application certificate *and* its key
+#   SIGNING_CERTIFICATE_PASSWORD  the password the .p12 was exported with
+# Every release must be signed by the same team, or installed copies refuse the update.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
+            echo "::error::tag $GITHUB_REF_NAME is not vX.Y.Z"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: |
+          python3 -m unittest discover -s tests
+          swift test
+
+      - name: Import signing certificate
+        env:
+          P12: ${{ secrets.SIGNING_CERTIFICATE_P12 }}
+          P12_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          if [ -z "$P12" ]; then
+            echo "::error::SIGNING_CERTIFICATE_P12 is not set; see the comment at the top of release.yml"
+            exit 1
+          fi
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/certificate.p12"
+          # Lets codesign use the key without a UI prompt nobody is there to answer.
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning "$KEYCHAIN"
+
+      # build.sh picks the imported identity up by itself, exactly as it does locally.
+      - name: Build
+        run: ./build.sh --universal --version "${{ steps.version.outputs.version }}"
+
+      - name: Refuse an unsigned build
+        run: |
+          APP="build/AI Session Radar.app"
+          TEAM="$(codesign -dv --verbose=2 "$APP" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
+          if [ -z "$TEAM" ] || [ "$TEAM" = "not set" ]; then
+            echo "::error::the app has no Team Identifier; the updater would reject it"
+            exit 1
+          fi
+          codesign --verify --deep --strict "$APP"
+          echo "signed by team $TEAM"
+
+      # `ditto` keeps the extended attributes the signature depends on; `zip` does not.
+      - name: Package
+        run: ditto -c -k --sequesterRsrc --keepParent "build/AI Session Radar.app" build/AI-Session-Radar.zip
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" build/AI-Session-Radar.zip \
+            --title "AI Session Radar ${{ steps.version.outputs.version }}" \
+            --generate-notes
+
+      - name: Remove signing keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true

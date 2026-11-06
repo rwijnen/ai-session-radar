@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Toolchain
+        run: |
+          swift --version
+          python3 --version
+
+      # Hermetic: temporary folders for all state, a fake `gh` for the pull requests,
+      # never the runner's ~/.claude.
+      - name: Python tests (hooks, sessions, pull requests, installer)
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Swift tests (updater)
+        run: swift test
+
+      - name: Build the app
+        run: ./build.sh

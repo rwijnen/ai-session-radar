@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Session Radar</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --panel: #ecebe6; --card: #ffffff; --text: #1d1c1a; --muted: #6d6a63;
+    --line: #dddad2; --needs: #d9620b; --review: #7b55d6; --working: #1f78c8; --done: #8a877f;
+    --shadow: 0 1px 2px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.04);
+    --desktop: #c13584; --vscode: #138a6e; --ghostty: #d4a20b; --terminal: #5e6773;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161614; --panel: #1f1f1c; --card: #2a2926; --text: #ecebe6; --muted: #a19d94;
+      --line: #3a3934; --needs: #ff8a3d; --review: #a98bff; --working: #5aa9ef; --done: #8f8b82;
+      --shadow: none;
+      --desktop: #e0559f; --vscode: #2db892; --ghostty: #e8b923; --terminal: #8a94a1;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  h1 { font-size: 16px; margin: 0; font-weight: 650; letter-spacing: -.01em; }
+  .counts { display: flex; gap: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .counts b { font-weight: 650; }
+  .spacer { flex: 1; }
+  .status { color: var(--muted); font-size: 12px; }
+  button { font: inherit; font-size: 12px; border: 1px solid var(--line); background: var(--card); color: var(--text);
+           border-radius: 6px; padding: 3px 9px; cursor: pointer; }
+  button:hover { border-color: var(--muted); }
+  main { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; padding: 16px 20px 32px; align-items: start; }
+  @media (max-width: 1000px) { main { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 600px) { main { grid-template-columns: 1fr; padding: 12px 16px; } header { padding: 12px 16px; } }
+  section { background: var(--panel); border-radius: 10px; padding: 10px; min-height: 120px; }
+  section h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; margin: 2px 4px 10px;
+               display: flex; align-items: center; gap: 8px; color: var(--muted); font-weight: 650; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; }
+  .card { background: var(--card); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; box-shadow: var(--shadow);
+          border-left: 3px solid var(--c); }
+  .card.quiet { opacity: .55; }
+  .title { font-weight: 600; overflow-wrap: anywhere; }
+  .meta { color: var(--muted); font-size: 12px; margin-top: 2px; overflow-wrap: anywhere; }
+  .app { display: inline-block; padding: 0 7px; border-radius: 999px; margin-right: 6px; font-weight: 600;
+         background: var(--app-bg); color: var(--app-fg); }
+  .app[data-app=desktop] { --app-bg: var(--desktop); --app-fg: #fff; }
+  .app[data-app=vscode] { --app-bg: var(--vscode); --app-fg: #fff; }
+  .app[data-app=ghostty] { --app-bg: var(--ghostty); --app-fg: #1f1f1f; }
+  .app[data-app=terminal] { --app-bg: var(--terminal); --app-fg: #fff; }
+  .detail { margin-top: 6px; font-size: 13px; overflow-wrap: anywhere; }
+  .detail .k { color: var(--c); font-weight: 600; }
+  .files { margin: 4px 0 0; padding-left: 16px; font-size: 12px; color: var(--muted); }
+  .files li { overflow-wrap: anywhere; }
+  .row { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+  .row .when { color: var(--muted); font-size: 12px; margin-right: auto; font-variant-numeric: tabular-nums; }
+  .empty { color: var(--muted); font-size: 12px; padding: 4px 6px 8px; }
+  .agent { margin: -4px 0 8px 14px; padding: 6px 10px; border-left: 2px solid var(--c); border-radius: 0 7px 7px 0;
+           background: color-mix(in srgb, var(--card) 60%, transparent); font-size: 12px; }
+  .agent .aname { font-weight: 550; overflow-wrap: anywhere; }
+  .agent .tool { color: var(--muted); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .atype { color: var(--app-bg); border: 1px solid var(--app-bg); border-radius: 999px; padding: 0 6px; font-weight: 600; }
+  .atype[data-app=desktop] { --app-bg: var(--desktop); } .atype[data-app=vscode] { --app-bg: var(--vscode); }
+  .atype[data-app=ghostty] { --app-bg: var(--ghostty); } .atype[data-app=terminal] { --app-bg: var(--terminal); }
+  [data-col=needs] { --c: var(--needs); } [data-col=review] { --c: var(--review); }
+  [data-col=working] { --c: var(--working); } [data-col=done] { --c: var(--done); }
+</style>
+</head>
+<body>
+<header>
+  <h1>AI Session Radar</h1>
+  <div class="counts" id="counts"></div>
+  <div class="spacer"></div>
+  <span class="status" id="status"></span>
+  <button id="seen-all" title="Finished sessions stop counting until they change again">Mark finished as seen</button>
+</header>
+<main id="board"></main>
+<script>
+const COLUMNS = [["needs", "Needs you"], ["review", "Ready to review"], ["working", "Working"], ["done", "Done"]];
+const KIND = { permission: "Permission", question: "Question", plan: "Plan", error: "Error", files: "Wrote" };
+
+function ago(s) {
+  if (s < 60) return s + "s";
+  if (s < 3600) return Math.floor(s / 60) + "m";
+  if (s < 86400) return Math.floor(s / 3600) + "h " + String(Math.floor(s % 3600 / 60)).padStart(2, "0") + "m";
+  return Math.floor(s / 86400) + "d";
+}
+function el(tag, attrs, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) k === "class" ? n.className = v : k.startsWith("on") ? n[k] = v : n.setAttribute(k, v);
+  for (const k of kids) if (k != null) n.append(k);
+  return n;
+}
+async function act(what, id) {
+  try { await fetch(`/api/${what}/${encodeURIComponent(id)}`, { method: "POST", headers: { "X-Radar": "1" } }); } catch (e) {}
+  refresh();
+}
+function agentCard(r, underParent) {
+  return el("div", { class: "agent", "data-col": r.column, title: "Subagent · double-click opens the session" },
+    el("div", { class: "meta" }, el("span", { class: "k" }, "↳ "), el("span", { class: "atype", "data-app": r.app_key }, r.agent_type),
+      (r.background ? " background · " : " ") + ago(r.waiting_s)),
+    el("div", { class: "aname" }, r.name),
+    r.detail ? el("div", { class: "tool" }, r.detail) : null,
+    underParent ? null : el("div", { class: "meta" }, "in " + r.parent_name));
+}
+function tokens(n) {
+  if (n < 1000) return String(n);
+  if (n < 1000000) return Math.round(n / 1000) + "k";
+  return (n / 1000000).toFixed(1) + "M";
+}
+function card(r) {
+  const context = r.context_tokens
+    ? " · " + tokens(r.context_tokens) + " context" + (r.context_window ? " · " + Math.round(r.context_tokens / r.context_window * 100) + "%" : "")
+    : "";
+  const when = { needs: "waiting ", review: "finished ", working: "working ", done: "" }[r.column] + ago(r.waiting_s) + (r.column === "done" ? " ago" : "") + context;
+  const where = r.folder + (r.branch ? " · " + r.branch : "");
+  const detail = r.detail && r.column !== "working"
+    ? el("div", { class: "detail" }, r.kind && KIND[r.kind] ? el("span", { class: "k" }, KIND[r.kind] + ": ") : null, r.detail)
+    : (r.column === "working" && r.last_prompt ? el("div", { class: "detail" }, el("span", { class: "k" }, "Asked: "), r.last_prompt) : null);
+  const files = r.column === "review" && r.files.length
+    ? el("ul", { class: "files" }, ...r.files.map(f => el("li", { title: f }, f.split("/").slice(-2).join("/")))) : null;
+  return el("div", { class: "card" + (r.column === "done" && r.seen ? " quiet" : ""), "data-col": r.column, title: r.cwd },
+    el("div", { class: "title" }, r.name),
+    el("div", { class: "meta" }, el("span", { class: "app", "data-app": r.app_key }, r.app), where),
+    detail, files,
+    el("div", { class: "row" },
+      el("span", { class: "when", title: r.context_tokens ? `Context of the latest reply: ${r.context_tokens} tokens${r.model ? " · " + r.model : ""}` : "" }, when),
+      (r.column === "review" || r.column === "done") && !r.seen ? el("button", { onclick: () => act("seen", r.id) }, "Seen") : null,
+      el("button", { onclick: () => act("open", r.id) }, "Open")));
+}
+async function refresh() {
+  let data;
+  try { data = await (await fetch("/api/state", { cache: "no-store" })).json(); }
+  catch (e) { document.getElementById("status").textContent = "radar server not reachable"; return; }
+  document.getElementById("status").textContent = "updated " + new Date().toLocaleTimeString();
+  const board = document.getElementById("board"), counts = document.getElementById("counts");
+  board.replaceChildren(...COLUMNS.map(([key, title]) => {
+    const rows = data.sessions.filter(r => r.column === key);
+    const agents = rows.filter(r => r.is_agent).length;
+    const cards = rows.map((r, i) => {
+      if (!r.is_agent) return card(r);
+      const n = agentCard(r, rows.slice(0, i).some(p => p.id === r.parent_id));
+      n.ondblclick = () => act("open", r.id);
+      return n;
+    });
+    return el("section", { "data-col": key },
+      el("h2", {}, el("span", { class: "dot" }), `${title} · ${rows.length - agents}` + (agents ? ` + ${agents} subagents` : "")),
+      ...(rows.length ? cards : [el("div", { class: "empty" }, "Nothing here")]));
+  }));
+  counts.replaceChildren(...COLUMNS.slice(0, 3).map(([key, title]) =>
+    el("span", { "data-col": key }, el("b", { style: "color: var(--c)" }, String(data.counts[key])), " " + title.toLowerCase())));
+  const n = data.counts.needs;
+  document.title = (n ? `(${n}) ` : "") + "AI Session Radar";
+}
+document.getElementById("seen-all").onclick = () => act("seen", "all");
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>
