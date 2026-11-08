@@ -20,6 +20,10 @@ AI review. Menu bar app; the board opens in its own window.
 > **This app was vibecoded.** Effectively all of the code, tests and documentation were
 > written by Claude Opus 5.5 in Claude Code. See [AI transparency](#ai-transparency).
 
+![The board: sessions in four columns, Needs you, Ready to review, Working and Done](Docs/screenshots/board.png)
+
+<sub>All screenshots show made-up sessions and pull requests.</sub>
+
 ---
 
 ## Install
@@ -94,6 +98,10 @@ PRs; clicking one jumps to it.
   how long the session waited for you.
 - **Pull requests**: see below.
 
+![Graph view: sessions grouped by project folder, with subagents linked to their session](Docs/screenshots/graph.png)
+
+![Timeline view: three hours of turns per session, Claude's above the line and yours below it](Docs/screenshots/timeline.png)
+
 Double-click any card, node or lane to jump to its session. Session names are the ones the apps
 show: the Desktop title, or for VS Code and terminal sessions the tab's title (Claude Code's own
 title, or the name you gave it with `/rename`).
@@ -113,6 +121,8 @@ front. Picking the right tab there is up to you: neither app allows that from ou
 
 Every open PR in the repositories you watch (Settings › Pull requests), plus every open PR
 anywhere that involves you (author, reviewer, assignee, mention), grouped by who has to act:
+
+![Pull requests view: open PRs grouped by who has to act, with checks, reviews and AI review](Docs/screenshots/pull-requests.png)
 
 | Group | A PR lands here when |
 |---|---|
