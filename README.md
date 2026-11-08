@@ -192,9 +192,16 @@ app refreshes its copy of the Python package, so the hooks run the new version f
 
 ### Publishing a release
 
-Push a tag and the [release workflow](.github/workflows/release.yml) tests, builds a universal
-app with the tag's version, signs it, refuses to publish an unsigned build, and attaches
-`AI-Session-Radar.zip` to a GitHub release:
+Raise `CFBundleShortVersionString` in `Resources/Info.plist`, add a `## X.Y.Z` heading to
+`CHANGELOG.md`, and merge to `main`. The [release workflow](.github/workflows/release.yml) then
+tests, builds a universal app with that version, signs it, refuses to publish an unsigned build,
+and attaches `AI-Session-Radar.zip` to a new GitHub release and tag. Anything else on `main`
+publishes nothing, so a README fix does not become a version.
+
+A pull request that changes what ships (`Sources/`, `Resources/`, `session_radar/`, `bin/`,
+`build.sh` or `Package.swift`) fails CI until it raises the version and adds that heading.
+
+To cut one by hand, push a tag that matches `Info.plist`:
 
 ```bash
 git tag v1.0.1 && git push origin v1.0.1

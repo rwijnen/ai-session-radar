@@ -10,6 +10,24 @@ permissions:
   contents: read
 
 jobs:
+  # A PR that changes the app must be a release, or merging it publishes nothing: the Release
+  # workflow only acts on a version that has no tag yet. Docs, tests and CI changes are exempt.
+  version-bump:
+    name: Version bump
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      # The whole history and the tags: it diffs against the base branch and refuses a
+      # version that is already tagged.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Check the PR bumps the version when it changes the app
+        env:
+          BASE: origin/${{ github.base_ref }}
+        run: .github/scripts/check-version-bump.sh "$BASE"
+
   build:
     runs-on: macos-15
     steps:
