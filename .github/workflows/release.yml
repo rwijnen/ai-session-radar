@@ -1,9 +1,13 @@
 name: Release
 
-# Pushing a tag like `v1.2.0` builds, signs and publishes AI-Session-Radar.zip as a GitHub
-# release. The in-app updater installs that archive only when it is signed by the same Apple
-# team as the copy already installed, so this workflow refuses to publish an unsigned build:
-# one would be announced to every user and then rejected by every one of them.
+# A release follows the version in Resources/Info.plist. Landing a version bump on main
+# builds, signs and publishes AI-Session-Radar.zip as a GitHub release and creates its tag;
+# everything else on main publishes nothing, so a README fix does not become a version.
+# Pushing a tag like `v1.2.0` still cuts one by hand, if Info.plist says the same version.
+#
+# The in-app updater installs that archive only when it is signed by the same Apple team as
+# the copy already installed, so this workflow refuses to publish an unsigned build: one
+# would be announced to every user and then rejected by every one of them.
 #
 # Needs two repository secrets:
 #   SIGNING_CERTIFICATE_P12       base64 of a .p12 export of an Apple Development or
@@ -13,26 +17,81 @@ name: Release
 
 on:
   push:
+    branches: [main]
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
 
-jobs:
-  release:
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v5
+# A hand-pushed tag and the push to main can land together; the second run then sees the
+# first one's release instead of racing it.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
-      - name: Version from tag
-        id: version
+jobs:
+  # On Linux: most pushes to main stop here, and need not wait for a macOS runner to say so.
+  decide:
+    name: Is there a release to make
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.decide.outputs.publish }}
+      version: ${{ steps.decide.outputs.version }}
+    steps:
+      # The whole history: a shallow clone has no tags to tell what is already released.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Compare the version with what is released
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="$(python3 -c 'import plistlib; print(plistlib.load(open("Resources/Info.plist", "rb"))["CFBundleShortVersionString"])')"
           if ! [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
-            echo "::error::tag $GITHUB_REF_NAME is not vX.Y.Z"
+            echo "::error file=Resources/Info.plist::version '$VERSION' is not X.Y.Z"
             exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            # Cut by hand. Without this, v1.2.0 over a stale Info.plist would make the updater
+            # refuse the download, since the tag and the app must carry the same version.
+            if [[ "${GITHUB_REF_NAME#v}" != "$VERSION" ]]; then
+              echo "::error::tag $GITHUB_REF_NAME does not match Info.plist ($VERSION). Bump Resources/Info.plist, or retag."
+              exit 1
+            fi
+          elif [[ "$GITHUB_REF" != refs/heads/main ]]; then
+            echo "Releases are only made from main or a version tag."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          elif git rev-parse --verify --quiet "refs/tags/v$VERSION" >/dev/null; then
+            if gh release view "v$VERSION" >/dev/null 2>&1; then
+              echo "v$VERSION is already released. Nothing to publish."
+            else
+              # Publishing from here would attach this commit's build to a tag on another one.
+              echo "::warning::tag v$VERSION exists but has no release. Re-run the tag's failed Release run, or delete the tag."
+            fi
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! grep -qE "^## ${VERSION}( |$)" CHANGELOG.md; then
+            echo "::error file=CHANGELOG.md::no '## $VERSION' heading in CHANGELOG.md"
+            exit 1
+          fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: decide
+    if: needs.decide.outputs.publish == 'true'
+    runs-on: macos-15
+    env:
+      VERSION: ${{ needs.decide.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
 
       - name: Test
         run: |
@@ -63,7 +122,7 @@ jobs:
 
       # build.sh picks the imported identity up by itself, exactly as it does locally.
       - name: Build
-        run: ./build.sh --universal --version "${{ steps.version.outputs.version }}"
+        run: ./build.sh --universal --version "$VERSION"
 
       - name: Refuse an unsigned build
         run: |
@@ -80,12 +139,15 @@ jobs:
       - name: Package
         run: ditto -c -k --sequesterRsrc --keepParent "build/AI Session Radar.app" build/AI-Session-Radar.zip
 
+      # On main there is no tag yet: this creates it at the commit that was built. A tag made
+      # with this token starts no workflow, so the release does not trigger itself again.
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" build/AI-Session-Radar.zip \
-            --title "AI Session Radar ${{ steps.version.outputs.version }}" \
+          gh release create "v$VERSION" build/AI-Session-Radar.zip \
+            --target "$GITHUB_SHA" \
+            --title "AI Session Radar $VERSION" \
             --generate-notes
 
       - name: Remove signing keychain
