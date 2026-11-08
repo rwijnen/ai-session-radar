@@ -302,14 +302,12 @@ def check_runs(*runs):
 class PullRequestTest(Harness):
     def setUp(self):
         super().setUp()
-        branch = subprocess.run(["git", "-C", str(ROOT), "branch", "--show-current"], capture_output=True, text=True).stdout.strip()
-        self.branch = branch.rsplit("/", 1)[-1] or "main"
         review = ("## PR Review\n\n| a | b |\n|---|---|\n| x | y |\n\n"
                   "<!-- vcrm-pr-review sha=abcd0002 verdict=REQUEST_CHANGES -->")
         old = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 30 * 86400))
         nodes = [
-            # Mine, one check failed: waits on me. Its head is the branch this repo has checked out.
-            pr_node(1, "ABC-101: my change", "me", f"feature/{self.branch}",
+            # Mine, one check failed: waits on me.
+            pr_node(1, "ABC-101: my change", "me", "feature/my-change",
                     commits=check_runs(("Validate", "COMPLETED", "SUCCESS"), ("Validate", "COMPLETED", "SKIPPED"),
                                        ("Analyzer", "COMPLETED", "FAILURE"))),
             # Someone else's, my review requested, AI review on the current head.
@@ -369,8 +367,12 @@ class PullRequestTest(Harness):
 
     def test_session_on_the_pr_branch_carries_the_pr(self):
         self.prs()
-        self.live("s9")
-        self.fire("s9", "UserPromptSubmit", prompt="fix the analyzer finding")
+        # A checkout of its own: CI runs pull requests on a detached HEAD, so this repo may be on no branch.
+        checkout = Path(self.tmp.name) / "checkout"
+        (checkout / ".git").mkdir(parents=True)
+        (checkout / ".git" / "HEAD").write_text("ref: refs/heads/feature/my-change\n")
+        self.live("s9", cwd=str(checkout))
+        self.fire("s9", "UserPromptSubmit", cwd=str(checkout), prompt="fix the analyzer finding")
         pr = self.board()["s9"]["pr"]
         self.assertEqual((pr["number"], pr["group"], pr["checks"]["failed"]), (1, "you", 1))
 
