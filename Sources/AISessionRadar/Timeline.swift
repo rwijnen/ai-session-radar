@@ -197,36 +197,13 @@ struct TurnLane: View {
                     // Subagents: thin lines above Claude's turn, one row per overlap.
                     ForEach(Array(rows.enumerated()), id: \.offset) { i, row in
                         ForEach(Array(row.enumerated()), id: \.offset) { _, a in
-                            let x0 = x(max(a.start, start), w), x1 = x(a.end ?? now, w)
-                            Capsule()
-                                .fill(Color(nsColor: stateColour("working")).opacity(a.background ? 0.3 : 0.5))
-                                .frame(width: max(3, x1 - x0), height: agentLine)
-                                .offset(x: x0, y: CGFloat(i) * (agentLine + agentGap))
-                                .help("\(a.type)" + (a.description.map { ": \($0)" } ?? "") + " · \(ago(Int((a.end ?? now) - a.start)))"
-                                      + (a.end == nil ? " · running" : "") + (a.background ? " · background" : ""))
+                            agentCapsule(a, row: i, width: w)
                         }
                     }
                     // The centre line: Claude above, you below.
                     Rectangle().fill(Color.primary.opacity(0.16)).frame(width: w, height: 1).offset(y: lineY)
                     ForEach(Array(turns.enumerated()), id: \.offset) { _, t in
-                        let x0 = x(t.from, w), x1 = x(t.to, w), width = max(2, x1 - x0)
-                        if t.yours {
-                            RoundedRectangle(cornerRadius: 4).fill(Color(nsColor: t.colour))
-                                .frame(width: width, height: youBar)
-                                .overlay {
-                                    if width >= 28 {
-                                        Text(ago(Int(t.seconds))).font(.system(size: 10.5, weight: .semibold)).monospacedDigit()
-                                            .foregroundColor(Color(nsColor: onStateColour)).lineLimit(1)
-                                    }
-                                }
-                                .offset(x: x0, y: lineY + 4)
-                                .help(help(t))
-                        } else {
-                            RoundedRectangle(cornerRadius: 2.5).fill(Color(nsColor: t.colour).opacity(0.85))
-                                .frame(width: width, height: claudeBar)
-                                .offset(x: x0, y: agentsHeight)
-                                .help(help(t))
-                        }
+                        turnBar(t, width: w, lineY: lineY, agentsHeight: agentsHeight)
                     }
                     Rectangle().fill(Color.primary.opacity(0.25)).frame(width: 1, height: height).offset(x: w - 1)
                 }
@@ -240,6 +217,48 @@ struct TurnLane: View {
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { store.open(session.id) }
         .help("Double-click opens the session")
+    }
+
+    // These pieces live outside `body` on purpose: inline, the expression was too much for
+    // the Swift 6.1 type-checker on CI ("unable to type-check in reasonable time").
+    private func agentCapsule(_ a: AgentSpan, row: Int, width w: CGFloat) -> some View {
+        let x0 = x(max(a.start, start), w), x1 = x(a.end ?? now, w)
+        return Capsule()
+            .fill(Color(nsColor: stateColour("working")).opacity(a.background ? 0.3 : 0.5))
+            .frame(width: max(3, x1 - x0), height: agentLine)
+            .offset(x: x0, y: CGFloat(row) * (agentLine + agentGap))
+            .help(agentHelp(a))
+    }
+
+    @ViewBuilder
+    private func turnBar(_ t: Turn, width w: CGFloat, lineY: CGFloat, agentsHeight: CGFloat) -> some View {
+        let x0 = x(t.from, w), x1 = x(t.to, w), width = max(2, x1 - x0)
+        if t.yours {
+            RoundedRectangle(cornerRadius: 4).fill(Color(nsColor: t.colour))
+                .frame(width: width, height: youBar)
+                .overlay {
+                    if width >= 28 {
+                        Text(ago(Int(t.seconds))).font(.system(size: 10.5, weight: .semibold)).monospacedDigit()
+                            .foregroundColor(Color(nsColor: onStateColour)).lineLimit(1)
+                    }
+                }
+                .offset(x: x0, y: lineY + 4)
+                .help(help(t))
+        } else {
+            RoundedRectangle(cornerRadius: 2.5).fill(Color(nsColor: t.colour).opacity(0.85))
+                .frame(width: width, height: claudeBar)
+                .offset(x: x0, y: agentsHeight)
+                .help(help(t))
+        }
+    }
+
+    private func agentHelp(_ a: AgentSpan) -> String {
+        var text = "\(a.type)"
+        if let description = a.description { text += ": \(description)" }
+        text += " · \(ago(Int((a.end ?? now) - a.start)))"
+        if a.end == nil { text += " · running" }
+        if a.background { text += " · background" }
+        return text
     }
 
     /// How long it waited for you in this range, and its state now.
