@@ -87,7 +87,9 @@ jobs:
   release:
     needs: decide
     if: needs.decide.outputs.publish == 'true'
-    runs-on: macos-15
+    # Not macos-15: its universal build rejects this package's Swift language mode
+    # ("given: [5], supported: []"), although a single-architecture build accepts it.
+    runs-on: macos-26
     env:
       VERSION: ${{ needs.decide.outputs.version }}
     steps:
