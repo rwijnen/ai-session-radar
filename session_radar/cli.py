@@ -147,7 +147,11 @@ def main(argv):
         row = core.find(rows, argv[1])
         if not row:
             sys.exit(f"No single session matches '{argv[1]}'.")
-        core.open_session(row) if cmd == "open" else core.mark_seen([row["id"]])
+        if cmd == "open":
+            parent = next((r for r in rows if r["id"] == row.get("parent_id")), None)
+            core.open_session(row, parent)
+        else:
+            core.mark_seen([row["id"]])
     elif cmd == "install":
         installer.install()
     elif cmd == "hooks-status":
