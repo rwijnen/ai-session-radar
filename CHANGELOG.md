@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.1
 
 - Opening a VS Code session no longer starts a second VS Code. The folder goes to the running
   VS Code through `open` instead of the `code` command, which on macOS always started an extra
