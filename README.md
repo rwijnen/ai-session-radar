@@ -134,7 +134,8 @@ anywhere that involves you (author, reviewer, assignee, mention), grouped by who
 
 Each row shows the repository and number, the title, the Jira-style key in the title, the author
 and target branch, checks (the failing ones by name), the review state, conflicts, size, comments,
-how long it has been open, and the Claude session working on its branch.
+how long it has been open, and the Claude session working on its branch. The button at the right
+of a row (or its right-click menu, or a double-click) opens the PR in your default browser.
 
 **AI review.** If your pipeline posts an AI review comment ending in the marker
 `<!-- vcrm-pr-review sha=<commit> verdict=<APPROVE|REQUEST_CHANGES|COMMENT> -->`, the row shows its
