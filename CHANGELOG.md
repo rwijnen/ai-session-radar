@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.0
+
+- Every row in Pull requests has a button that opens the PR in your default browser, and the
+  same in its right-click menu. Double-clicking the row still works too.
+
 ## 1.0.1
 
 - Opening a VS Code session no longer starts a second VS Code. The folder goes to the running
