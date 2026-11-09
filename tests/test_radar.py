@@ -195,6 +195,26 @@ class RadarTest(Harness):
         board = self.board()
         self.assertEqual((board["v1"]["name"], board["d1"]["name"]), ("My own name", "My own name"))
 
+    def test_vscode_session_opens_the_window_it_started_in(self):
+        sys.path.insert(0, str(ROOT / "session_radar"))
+        import core
+        from unittest import mock
+        transcript = Path(self.tmp.name) / "w.jsonl"
+        lines = [{"type": "summary"}, {"type": "attachment", "data": {"cwd": "/elsewhere"}},
+                 {"type": "user", "cwd": "/repo/Miele"}, {"type": "user", "cwd": "/repo/Miele-ps3-1"}]
+        transcript.write_text("".join(json.dumps(l) + "\n" for l in lines))
+        row = {"id": "w1", "app": "VS Code", "entrypoint": "claude-vscode", "cwd": "/repo/Miele-ps3-1",
+               "transcript_path": str(transcript)}
+        agent = {**row, "id": "w1:a1", "parent_id": "w1", "transcript_path": None}
+        done = lambda args, check=False: subprocess.CompletedProcess(args, 0)
+        with mock.patch.object(core.subprocess, "run", side_effect=done) as run, mock.patch.object(core, "mark_seen"):
+            core.open_session(row)                                  # moved into a worktree: its start folder
+            core.open_session(agent, row)                           # a subagent: its session's window
+            core.open_session({**row, "transcript_path": None})     # no transcript: the current folder
+        calls = [c.args[0] for c in run.call_args_list]
+        vscode = ["open", "-b", "com.microsoft.VSCode"]
+        self.assertEqual(calls, [vscode + ["/repo/Miele"]] * 2 + [vscode + ["/repo/Miele-ps3-1"]])
+
     def test_bad_input_never_fails_the_hook(self):
         r = subprocess.run([sys.executable, str(HOOK)], input="not json", text=True, env=self.env, capture_output=True)
         self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))

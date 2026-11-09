@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.1
+
+- Opening a VS Code session no longer starts a second VS Code. The folder goes to the running
+  VS Code through `open` instead of the `code` command, which on macOS always started an extra
+  VS Code process that closed itself again.
+- Opening a VS Code session that moved into a git worktree focuses the window it started in,
+  instead of opening a new window on the worktree.
+
 ## 1.0.0
 
 First public release.
