@@ -360,8 +360,34 @@ def find(rows, prefix):
     return hits[0] if len(hits) == 1 else None
 
 
-def open_session(row):
-    """Bring the session's app to the front, as close to the session as each app allows."""
+def start_folder(row):
+    """The folder the session started in. A VS Code session starts in its window's folder and can
+    move away later (EnterWorktree into a git worktree, a `cd` that sticks), so its current folder
+    may be one no window has open. The first transcript line with a cwd still holds the start."""
+    path = row.get("transcript_path")
+    if path:
+        try:
+            with open(path, "rb") as f:
+                for n, line in enumerate(f):
+                    if n >= 50:
+                        break
+                    if b'"cwd"' not in line:
+                        continue
+                    try:
+                        cwd = json.loads(line).get("cwd")
+                    except (ValueError, AttributeError):
+                        continue
+                    if cwd:
+                        return cwd
+        except OSError:
+            pass
+    return row.get("cwd")
+
+
+def open_session(row, session=None):
+    """Bring the session's app to the front, as close to the session as each app allows.
+    `session` is the parent row when `row` is a subagent."""
+    session = session or row
     entry = row.get("entrypoint")
     host = row.get("host_session_id") or ""
     if entry == "claude-desktop":
@@ -371,8 +397,11 @@ def open_session(row):
         else:
             subprocess.run(["open", "-b", "com.anthropic.claudefordesktop"], check=False)
     elif entry == "claude-vscode" or row["app"].startswith("VS Code"):
-        # `code <folder>` focuses the window that has this folder open.
-        if subprocess.run(["code", row["cwd"]], check=False).returncode != 0:
+        # Handing the folder to the running VS Code focuses the window that has it open. Not
+        # `code <folder>`: on macOS that starts a second VS Code (`open -n`) that passes the folder
+        # on and quits, and with a folder no window has open it adds a window.
+        folder = start_folder(session)
+        if not folder or subprocess.run(["open", "-b", "com.microsoft.VSCode", folder], check=False).returncode != 0:
             subprocess.run(["open", "-b", "com.microsoft.VSCode"], check=False)
     else:
         bundle = {"Ghostty": "com.mitchellh.ghostty", "Terminal": "com.apple.Terminal",

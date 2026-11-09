@@ -114,7 +114,8 @@ type, its task, its current tool call and how long it has run. Activity inside a
 moves its session, except a permission prompt, which waits for you.
 
 **Jumping back.** Desktop sessions open exactly, through the app's `claude://` link. For VS Code
-the app focuses the window with the session's folder; for terminals it brings the terminal to the
+the app focuses the window with the folder the session started in, also after the session moved
+into a git worktree; for terminals it brings the terminal to the
 front. Picking the right tab there is up to you: neither app allows that from outside.
 
 ### Pull requests
