@@ -1,6 +1,7 @@
 // Pull requests view: open PRs in the watched repos and every PR that involves you, grouped by
 // who has to act. Each row: repo and number, title, Jira key, author and target branch, checks,
 // review state, size, comments, the AI review verdict and the Claude session on the PR's branch.
+// The row's button, its right-click menu and a double-click open the PR in the default browser.
 // Hovering the AI review label opens the review itself, rendered as GitHub renders it.
 import SwiftUI
 import WebKit
@@ -85,7 +86,7 @@ struct PRRow: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text(pr.title).font(.system(size: 13, weight: .semibold)).lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
-                    .help("Double-click opens the pull request on GitHub")
+                    .help("Double-click opens the pull request in your browser")
                 HStack(spacing: 6) {
                     Text("\(pr.repoName) #\(pr.number)").foregroundStyle(.secondary)
                     if let j = pr.jira { Pill(text: j, style: .tint(Color(nsColor: columns[1].colour))) }
@@ -124,7 +125,13 @@ struct PRRow: View {
                 Text("open \(ago(Int(now - pr.createdAt)))")
             }
             .font(.system(size: 11)).foregroundStyle(.secondary)
-            .padding(.vertical, 9).padding(.trailing, 12)
+            .padding(.vertical, 9).padding(.trailing, 6)
+            Button { openURL(pr.url) } label: {
+                Image(systemName: "arrow.up.right.square").font(.system(size: 14))
+            }
+            .buttonStyle(.borderless)
+            .help("Open \(pr.repoName) #\(pr.number) in your browser")
+            .padding(.top, 9).padding(.trailing, 12)
         }
         .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor)))
         .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -133,6 +140,7 @@ struct PRRow: View {
         .contentShape(Rectangle())
         .onHover { hover = $0 }
         .onTapGesture(count: 2) { openURL(pr.url) }
+        .contextMenu { Button("Open in Browser") { openURL(pr.url) } }
     }
 
     @ViewBuilder private var checksPills: some View {
