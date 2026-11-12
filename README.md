@@ -94,14 +94,15 @@ PRs; clicking one jumps to it.
   and Seen appear when you hover a card; a session on a branch with an open PR gets a *PR #n* badge.
 - **Graph**: sessions grouped by project folder, each subagent linked to the session that started it.
 - **Timeline**: the last 1, 3 or 8 hours as turn-taking, or under *Custom* any number of hours
-  back up to 24 (the hook keeps a day of history). Claude's turns sit above each lane's
+  back, from 1 to 24 (the hook keeps a day of history). Claude's turns sit above each lane's
   centre line, yours (Needs you, Ready to review) below it with their minutes, and on the right
-  how long the session waited for you.
+  how long the session waited for you. On longer ranges the time axis marks every 2 or 3 hours,
+  and midnight with the weekday.
 - **Pull requests**: see below.
 
 ![Graph view: sessions grouped by project folder, with subagents linked to their session](Docs/screenshots/graph.png)
 
-![Timeline view: three hours of turns per session, Claude's above the line and yours below it](Docs/screenshots/timeline.png)
+![Timeline view: the last 12 hours under Custom, Claude's turns above each lane's line and yours below it](Docs/screenshots/timeline.png)
 
 Double-click any card, node or lane to jump to its session. Session names are the ones the apps
 show: the Desktop title, or for VS Code and terminal sessions the tab's title (Claude Code's own
