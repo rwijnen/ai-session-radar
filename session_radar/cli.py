@@ -1,7 +1,8 @@
 """radar: the command line of AI Session Radar, one view of every Claude Code session on this Mac.
 
   radar                 list sessions, grouped: needs you, ready to review, working, done
-  radar json            the same as JSON (used by the menu bar app and the board)
+  radar json            the same as JSON (used by the menu bar app and the board), with the
+                        sessions closed in the last week apart, for the timeline
   radar serve [--port N] [--no-browser]
                         the board in the browser, on http://127.0.0.1:7878
   radar open <id>       bring that session's app to the front (id prefix is enough)
@@ -131,8 +132,13 @@ def main(argv):
     elif cmd in ("list", "ls"):
         cmd_list(core.sessions())
     elif cmd == "json":
-        rows = core.sessions()
-        print(json.dumps({"generated_at": time.time(), "counts": core.summary(rows), "sessions": rows}, ensure_ascii=False))
+        # Closed sessions go apart: only the timeline draws them, so the board and the counts
+        # stay as they were.
+        rows = core.sessions(include_ended=True)
+        live = [r for r in rows if r["state"] != "ended"]
+        closed = [r for r in rows if r["state"] == "ended"]
+        print(json.dumps({"generated_at": time.time(), "counts": core.summary(live), "sessions": live,
+                          "closed": closed}, ensure_ascii=False))
     elif cmd == "serve":
         import server
         port = int(argv[argv.index("--port") + 1]) if "--port" in argv else 7878
