@@ -160,6 +160,66 @@ class RadarTest(Harness):
         found = subprocess.run([sys.executable, str(CLI), "seen", "s9"], env=self.env, capture_output=True, text=True)
         self.assertEqual(found.returncode, 0)  # a session prefix still finds the session, not its agents
 
+    def state(self, sid, **changes):
+        """Rewrites fields in a session's hook state, to make time pass."""
+        path = Path(self.env["CLAUDE_RADAR_DIR"]) / "sessions" / f"{sid}.json"
+        s = json.loads(path.read_text())
+        for key, value in changes.items():
+            if key == "agent_last_at":
+                for a in s["agents"].values():
+                    a["last_at"] = value
+            else:
+                s[key] = value
+        path.write_text(json.dumps(s))
+
+    def test_turn_that_ends_while_a_subagent_runs_stays_working(self):
+        self.live("w1")
+        self.fire("w1", "UserPromptSubmit", prompt="apply the review fixes")
+        # No run_in_background: Claude Code starts subagents in the background by default.
+        self.fire("w1", "PreToolUse", tool_name="Agent",
+                  tool_input={"description": "Apply PR 202 review fixes", "subagent_type": "vcrm-sf:developer"})
+        self.fire("w1", "SubagentStart", agent_id="b1", agent_type="vcrm-sf:developer")
+        self.fire("w1", "PostToolUse", tool_name="Write", tool_input={"file_path": "/repo/docs/review.md"})
+        self.fire("w1", "Stop", last_assistant_message="The developer agent is applying the fixes.")
+        out = json.loads(subprocess.run([sys.executable, str(CLI), "json"], env=self.env, capture_output=True, text=True, check=True).stdout)
+        ids = [r["id"] for r in out["sessions"]]
+        board = {r["id"]: r for r in out["sessions"]}
+        self.assertEqual((board["w1"]["column"], board["w1"]["kind"], board["w1"]["detail"]),
+                         ("working", "agents", "Waiting for subagent: Apply PR 202 review fixes"))
+        self.assertEqual(ids.index("w1:b1"), ids.index("w1") + 1)  # still linked right under its session
+        self.assertTrue(board["w1:b1"]["background"])  # the turn ended while it ran
+
+        # The hand-back starts the next turn; the document from the first turn still goes to review.
+        self.fire("w1", "PostToolUse", agent_id="b1", agent_type="vcrm-sf:developer", tool_name="Edit",
+                  tool_input={"file_path": "/repo/src/Foo.cls"})
+        self.fire("w1", "SubagentStop", agent_id="b1", agent_type="vcrm-sf:developer", agent_transcript_path="/t")
+        self.assertEqual(self.board()["w1"]["column"], "working")  # waits for the hand-back
+        self.fire("w1", "UserPromptSubmit", prompt='<agent-message from="b1">\n[Subagent hand-back] Fixes applied.')
+        self.fire("w1", "Stop", last_assistant_message="All review fixes are applied.")
+        row = self.board()["w1"]
+        self.assertEqual((row["column"], row["files"], row["prompt_count"]), ("review", ["/repo/docs/review.md"], 1))
+        self.assertNotIn("w1:b1", self.board())
+
+    def test_waiting_session_is_done_when_no_hand_back_comes(self):
+        self.live("w2")
+        self.fire("w2", "UserPromptSubmit", prompt="research it")
+        self.fire("w2", "SubagentStart", agent_id="c1", agent_type="Explore")
+        self.fire("w2", "Stop", last_assistant_message="Researching in the background.")
+        self.fire("w2", "SubagentStop", agent_id="c1", agent_type="Explore", agent_transcript_path="/t")
+        self.state("w2", updated_at=time.time() - 300)  # no hand-back for five minutes
+        row = self.board()["w2"]
+        self.assertEqual((row["column"], row["detail"]), ("done", "Subagents finished"))
+        self.assertEqual([h[0] for h in row["history"]], ["working", "done"])
+
+        # A subagent that lost its stop event: the session is done once the subagent goes stale.
+        self.live("w3")
+        self.fire("w3", "UserPromptSubmit", prompt="look around")
+        self.fire("w3", "SubagentStart", agent_id="d1", agent_type="Explore")
+        self.fire("w3", "Stop", last_assistant_message="Started a search.")
+        self.state("w3", agent_last_at=time.time() - 30 * 60, updated_at=time.time() - 30 * 60)
+        self.assertEqual(self.board()["w3"]["column"], "done")
+        self.assertNotIn("w3:d1", self.board())
+
     def test_history_for_the_timeline(self):
         self.live("h1")
         self.fire("h1", "UserPromptSubmit", prompt="go")

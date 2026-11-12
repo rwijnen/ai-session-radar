@@ -14,7 +14,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from hook import SESSIONS_DIR, STATE_DIR, safe_id
+from hook import AGENT_STALE, SESSIONS_DIR, STATE_DIR, running_agents, safe_id
 
 CLAUDE_SESSIONS = Path(os.environ.get("CLAUDE_RADAR_REGISTRY") or os.path.expanduser("~/.claude/sessions"))
 SEEN_FILE = Path(STATE_DIR) / "seen.json"
@@ -35,7 +35,7 @@ APP_NAMES = {
     "WarpTerminal": "Warp",
 }
 UNTRACKED_GRACE = 15 * 60      # a hook file without a live process stays this long
-AGENT_STALE = 20 * 60          # a subagent with no activity this long has lost its stop event
+HANDBACK_GRACE = 2 * 60        # a session waiting for subagents that all stopped is done after this
 PRUNE_AFTER = 7 * 24 * 3600    # state files of ended sessions are removed after this
 
 
@@ -198,6 +198,20 @@ def session_name(listed, cwd, titles, first_prompt, sid):
     return ai or listed or first_prompt or os.path.basename(cwd) or sid[:8]
 
 
+def settle_waiting(s, now):
+    """A session whose turn ended while its subagents ran stays in Working (hook.py), because
+    their hand-back starts its next turn. Once they have all stopped and no hand-back came
+    within HANDBACK_GRACE (the session was closed, or a subagent lost its stop event), the
+    session is done, from the moment it was last heard of."""
+    if s.get("state") != "working" or s.get("kind") != "agents" or running_agents(s, now):
+        return
+    last = s.get("updated_at") or now
+    if now - last < HANDBACK_GRACE:
+        return
+    s["state"], s["kind"], s["detail"], s["state_since"] = "done", None, "Subagents finished", last
+    s["history"] = (s.get("history") or []) + [["done", round(last, 1)]]
+
+
 def sessions(include_ended=False):
     """Every session worth showing, as plain dicts, most urgent first."""
     now = time.time()
@@ -211,6 +225,7 @@ def sessions(include_ended=False):
         if not isinstance(s, dict) or not s.get("session_id"):
             continue
         known.add(s["session_id"])
+        settle_waiting(s, now)
         entry = reg.get(s["session_id"])
         if entry and not entry["alive"] and s.get("state") != "ended":
             s["state"], s["kind"], s["detail"] = "ended", None, "process gone"
