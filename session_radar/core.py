@@ -228,13 +228,18 @@ def sessions(include_ended=False):
         settle_waiting(s, now)
         entry = reg.get(s["session_id"])
         if entry and not entry["alive"] and s.get("state") != "ended":
-            s["state"], s["kind"], s["detail"] = "ended", None, "process gone"
+            # Closed without SessionEnd: it ended when it was last heard of, which is also
+            # where its timeline lane stops.
+            gone = s.get("updated_at") or now
+            s["state"], s["kind"], s["detail"], s["state_since"] = "ended", None, "process gone", gone
+            s["history"] = (s.get("history") or []) + [["ended", round(gone, 1)]]
         if not entry and s.get("state") != "ended" and now - s.get("updated_at", 0) > UNTRACKED_GRACE:
             continue  # headless run (claude -p) or a session from before a restart
         if s.get("state") == "ended":
             if now - s.get("updated_at", 0) > PRUNE_AFTER:
                 for leftover in (path, Path(str(path) + ".lock")):
                     leftover.unlink(missing_ok=True)
+                continue
             if not include_ended:
                 continue
         if entry and entry.get("kind") not in (None, "interactive"):
