@@ -1,6 +1,7 @@
 // Graph view: sessions grouped by project (their folder), each subagent linked to the
 // session that started it. Node borders carry the state colour; background subagents
-// have dashed borders and dashed links. Finished sessions shrink to chips at the bottom.
+// have dashed borders and dashed links. Finished sessions shrink to chips at the bottom,
+// unless a subagent of theirs is still running.
 import SwiftUI
 
 private let nodeWidth: CGFloat = 230, agentWidth: CGFloat = 230
@@ -44,8 +45,11 @@ struct ProjectCluster: View {
     @ObservedObject var store: Store
 
     var body: some View {
-        let active = sessions.filter { $0.column != "done" }
-        let finished = sessions.filter { $0.column == "done" }
+        // A finished session with a subagent still running keeps its node, so the subagent
+        // stays linked to it instead of disappearing with the chip.
+        let parents = Set(agents.compactMap(\.parentId))
+        let active = sessions.filter { $0.column != "done" || parents.contains($0.id) }
+        let finished = sessions.filter { $0.column == "done" && !parents.contains($0.id) }
         let branches = Array(Set(sessions.compactMap(\.branch))).sorted()
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
