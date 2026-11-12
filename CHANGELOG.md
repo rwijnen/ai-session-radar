@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.1
+
+- A session whose turn ends while its subagents still run stays in Working instead of moving to
+  Done. Claude Code runs subagents in the background, so the turn ends before they finish; the
+  session now waits for their hand-back, and documents from the first turn still go to Ready to
+  review.
+- The Graph shows a running subagent linked to its session also when that session is in Done,
+  instead of leaving it out.
+- A subagent counts as background when its session's turn ends while it runs, not only when it
+  was started with `run_in_background`, so the Graph draws it dashed.
+
 ## 1.1.0
 
 - Every row in Pull requests has a button that opens the PR in your default browser, and the
