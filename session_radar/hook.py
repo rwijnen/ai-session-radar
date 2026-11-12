@@ -133,6 +133,21 @@ def set_state(s, state, kind, detail, now):
 
 
 AGENT_TOOLS = {"Agent", "Task"}  # the tool that starts a subagent (renamed from Task to Agent)
+AGENT_STALE = 20 * 60  # a subagent with no activity this long has lost its stop event
+
+
+def running_agents(s, now):
+    """The session's subagents that are still running: started, not stopped, and active lately."""
+    return {agent_id: a for agent_id, a in (s.get("agents") or {}).items()
+            if now - a.get("last_at", a.get("started", now)) <= AGENT_STALE}
+
+
+def waiting_text(agents):
+    """`Waiting for subagent: <task>`, or `Waiting for 3 subagents` when there are several."""
+    if len(agents) == 1:
+        a = next(iter(agents.values()))
+        return "Waiting for subagent: " + (a.get("description") or a.get("type") or "agent")
+    return f"Waiting for {len(agents)} subagents"
 
 
 def track_file(s, tool, tool_input):
@@ -249,12 +264,16 @@ def apply_event(s, ev, now):
 
     elif event == "UserPromptSubmit":
         raw = str(ev.get("prompt") or "")
-        if not AUTOMATED_PROMPT.match(raw):  # an injected handback still starts work, but is not a prompt
+        automated = AUTOMATED_PROMPT.match(raw)
+        if not automated:  # an injected handback still starts work, but is not a prompt
             prompt = clip(raw, 200)
             s.setdefault("first_prompt", prompt)
             s["last_prompt"] = prompt
             s["prompt_count"] = s.get("prompt_count", 0) + 1
-        s["turn_files"] = []
+        # A subagent's hand-back continues the turn that waited for it: that turn's documents
+        # still count when the work is finally done.
+        if not (automated and s.get("kind") == "agents"):
+            s["turn_files"] = []
         s["pending_ask"] = None
         set_state(s, "working", None, None, now)
 
@@ -294,10 +313,19 @@ def apply_event(s, ev, now):
         message = ev.get("last_assistant_message") or ""
         s["last_message"] = clip(message, 500) or None
         files = s.get("turn_files") or []
-        s["review_files"] = files
         question = s.get("pending_ask") or last_line_is_question(message)
+        running = running_agents(s, now)
+        for a in running.values():
+            a["background"] = True  # the turn ended while it ran, so it runs in the background
+        if question or not running:
+            s["review_files"] = files
         if question:
             set_state(s, "needs_you", "question", plain(question), now)
+        elif running:
+            # The turn ended, but the subagents it started still work and will hand back to the
+            # session, which then carries on: the work is not finished yet. turn_files stays for
+            # the turn that ends after the hand-back.
+            set_state(s, "working", "agents", waiting_text(running), now)
         elif files:
             names = ", ".join(os.path.basename(f) for f in files[:3]) + (" …" if len(files) > 3 else "")
             set_state(s, "review", "files", names, now)
