@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.1
 
 - A session whose turn ends while its subagents still run stays in Working instead of moving to
   Done. Claude Code runs subagents in the background, so the turn ends before they finish; the
