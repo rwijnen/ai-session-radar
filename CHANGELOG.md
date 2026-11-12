@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.3.0
 
 - A pull request that waits on your review has a **Review with Claude** button, next to the
   open-in-browser button and in its right-click menu. It opens a new Claude Code Desktop session
