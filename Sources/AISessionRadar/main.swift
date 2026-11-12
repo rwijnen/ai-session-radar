@@ -29,6 +29,7 @@ final class RadarApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         store.seen = { [weak self] id in self?.background(["seen", id]) }
         alerts.open = { [weak self] id in self?.background(["open", id]) }
         store.refreshPRs = { [weak self] in self?.refreshPRs() }
+        store.reviewPR = { [weak self] id in self?.reviewPR(id) }
     }
 
     func applicationDidFinishLaunching(_ note: Notification) {
@@ -36,7 +37,7 @@ final class RadarApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         updates = MainActor.assumeIsolated { UpdateChecker(preferences: preferences) }
         settings = SettingsWindow { [unowned self] welcome, close in
             AnyView(SettingsView(setup: setup, config: config, updates: updates, preferences: preferences, alerts: alerts,
-                                 welcome: welcome, done: { [unowned self] in preferences.setupDone = true; close() }))
+                                 store: store, welcome: welcome, done: { [unowned self] in preferences.setupDone = true; close() }))
         }
         settings.onClose = { [weak self] in self?.windowClosed() }
         board.onClose = { [weak self] in self?.windowClosed() }
@@ -57,6 +58,7 @@ final class RadarApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         watchers.append(config.$prRepos.dropFirst().sink { [weak self] _ in
             DispatchQueue.main.async { self?.refreshPRs() }
         })
+        watchers.append(config.$prCheckouts.sink { [weak self] set in self?.store.prCheckoutsSet = set })
         MainActor.assumeIsolated { updates.start() }
         // The welcome window: on first launch, and whenever Python or the hooks are missing.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
@@ -137,8 +139,12 @@ final class RadarApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let prs = (json["prs"] as? [[String: Any]] ?? []).compactMap(PR.init)
             let error = json["error"] as? String
             let watched = self.watchedRepos()
+            let found = (json["checkouts"] as? [String: Any] ?? [:]).compactMapValues { $0 as? String }
+            let defaultPrompt = json["review_prompt_default"] as? String ?? ""
             DispatchQueue.main.async {
                 if self.store.prs != prs { self.store.prs = prs }
+                if self.store.prCheckoutsFound != found { self.store.prCheckoutsFound = found }
+                if self.store.prReviewDefault != defaultPrompt { self.store.prReviewDefault = defaultPrompt }
                 self.store.prError = error
                 self.store.prWatched = watched
                 self.store.prFetched = Date()
@@ -150,6 +156,18 @@ final class RadarApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func watchedRepos() -> [String] { config.prRepos }
+
+    /// Review with Claude: `radar review` opens a new Desktop session in the PR's checkout with the
+    /// review prompt typed in. The button is off when no checkout is known, so a failure is rare: a beep.
+    func reviewPR(_ id: String) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let r = self.setup.radar(["review", id])
+            if r.status != 0 {
+                Log.app.error("radar review \(id, privacy: .public) failed with status \(r.status)")
+                DispatchQueue.main.async { NSSound.beep() }
+            }
+        }
+    }
 
     // MARK: menu bar title
 

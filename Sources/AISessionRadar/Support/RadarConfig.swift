@@ -9,6 +9,10 @@ final class RadarConfig: ObservableObject {
     @Published var prRepos: [String] { didSet { save("pr_repos", prRepos) } }
     @Published var prOthers: Bool { didSet { save("pr_others", prOthers) } }
     @Published var prStaleDays: Int { didSet { save("pr_stale_days", prStaleDays) } }
+    /// Review with Claude: the local checkout per repo (owner/name → folder), where set by hand.
+    @Published var prCheckouts: [String: String] { didSet { save("pr_checkouts", prCheckouts) } }
+    /// Review with Claude: the prompt template; empty means the built-in one.
+    @Published var prReviewPrompt: String { didSet { save("pr_review_prompt", prReviewPrompt) } }
 
     init() {
         let stored = Self.read()
@@ -16,6 +20,8 @@ final class RadarConfig: ObservableObject {
         prRepos = stored["pr_repos"] as? [String] ?? []
         prOthers = stored["pr_others"] as? Bool ?? true
         prStaleDays = stored["pr_stale_days"] as? Int ?? 14
+        prCheckouts = stored["pr_checkouts"] as? [String: String] ?? [:]
+        prReviewPrompt = stored["pr_review_prompt"] as? String ?? ""
     }
 
     private static func read() -> [String: Any] {
