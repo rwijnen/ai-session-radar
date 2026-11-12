@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.4.0
 
 - The Timeline's Custom range takes a date and time instead of a number of hours, and shows
   everything from then up to now, at most a week back.
