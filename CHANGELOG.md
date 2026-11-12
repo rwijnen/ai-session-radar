@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0
+
+- The Timeline has a fourth range, Custom, with a menu to pick how far back it looks: 1 to 24
+  hours. The hook keeps a day of history, so 24 hours is as far back as there is anything to show.
+- On longer ranges the time axis marks every 2 or 3 hours on whole local hours, so it keeps eight
+  labels or fewer, and shows the weekday at midnight.
+
 ## 1.1.1
 
 - A session whose turn ends while its subagents still run stays in Working instead of moving to
