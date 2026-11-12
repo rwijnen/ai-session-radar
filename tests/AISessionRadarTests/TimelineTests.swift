@@ -39,13 +39,19 @@ struct TimelineTests {
     func daylightSaving() throws {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = try #require(TimeZone(identifier: "Europe/Amsterdam"))
-        let end = 1_793_188_800.0  // 2026-10-28 12:00 UTC; clocks went back on 25 October
-        for (span, step) in [(7 * 24 * 3600.0, 24), (2 * 24 * 3600.0 + 4 * 3600, 6)] {
-            let t = ticks(end - span, end, calendar: cal)
+        let end: Double = 1_793_188_800  // 2026-10-28 12:00 UTC; clocks went back on 25 October
+        // Spelled out with types: as one tuple-array literal it was too much for the Swift 6.1
+        // type-checker on CI ("unable to type-check in reasonable time").
+        let week: Double = 7 * 86400, twoDays: Double = 52 * 3600
+        let cases: [(span: Double, stepHours: Int)] = [(week, 24), (twoDays, 6)]
+        for c in cases {
+            let t = ticks(end - c.span, end, calendar: cal)
             #expect(!t.isEmpty)
             for tick in t {
-                let c = cal.dateComponents([.hour, .minute], from: Date(timeIntervalSince1970: tick))
-                #expect(c.minute == 0 && (c.hour ?? -1) % step == 0)
+                let parts = cal.dateComponents([.hour, .minute], from: Date(timeIntervalSince1970: tick))
+                let hour: Int = parts.hour ?? -1
+                #expect(parts.minute == 0)
+                #expect(hour % c.stepHours == 0)
             }
         }
     }
