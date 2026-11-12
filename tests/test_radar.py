@@ -379,7 +379,9 @@ def check_runs(*runs):
         {"__typename": "CheckRun", "name": n, "status": s, "conclusion": c} for n, s, c in runs]}}}}]}
 
 
-class PullRequestTest(Harness):
+class PRHarness(Harness):
+    """A stub `gh` that answers with five pull requests of acme/app."""
+
     def setUp(self):
         super().setUp()
         review = ("## PR Review\n\n| a | b |\n|---|---|\n| x | y |\n\n"
@@ -419,6 +421,8 @@ class PullRequestTest(Harness):
         out = subprocess.run([sys.executable, str(CLI), "prs-json", "--refresh"], env=self.env, capture_output=True, text=True, check=True)
         return json.loads(out.stdout)
 
+
+class PullRequestTest(PRHarness):
     def test_groups_checks_and_ai_review(self):
         subprocess.run([sys.executable, str(CLI), "prs", "watch", "acme/app"], env=self.env, capture_output=True, check=True)
         data = self.prs()
@@ -470,3 +474,96 @@ class PullRequestTest(Harness):
         data = self.prs()
         self.assertIn("Bad credentials", data["error"])
         self.assertEqual(len(data["prs"]), 3)
+
+
+class ReviewWithClaudeTest(PRHarness):
+    """Review with Claude: the checkout a review opens in, the prompt and the Desktop link."""
+
+    def setUp(self):
+        super().setUp()
+        sys.path.insert(0, str(ROOT / "session_radar"))
+        # A main checkout of acme/app and a linked worktree of it, laid out as git does.
+        base = Path(self.tmp.name)
+        self.main = base / "repos" / "app"
+        git = self.main / ".git"
+        (git / "worktrees" / "app-ps3-1").mkdir(parents=True)
+        (git / "config").write_text('[core]\n\tbare = false\n[remote "upstream"]\n\turl = git@github.com:other/app.git\n'
+                                    '[remote "origin"]\n\turl = git@github.com:Acme/App.git\n\tfetch = +refs/heads/*\n')
+        (git / "worktrees" / "app-ps3-1" / "commondir").write_text("../..\n")
+        (git / "worktrees" / "app-ps3-1" / "HEAD").write_text("ref: refs/heads/feature/ps3-1\n")
+        self.worktree = base / "repos" / "app-ps3-1"
+        self.worktree.mkdir()
+        (self.worktree / ".git").write_text(f"gitdir: {git}/worktrees/app-ps3-1\n")
+
+    def review(self, pr_id="acme/app#2"):
+        return subprocess.run([sys.executable, str(CLI), "review", pr_id, "--print"], env=self.env, capture_output=True, text=True)
+
+    @staticmethod
+    def parse(link):
+        from urllib.parse import parse_qs, urlsplit
+        u = urlsplit(link.strip())
+        return (u.scheme, u.netloc, u.path), {k: v[0] for k, v in parse_qs(u.query).items()}
+
+    def config(self, **settings):
+        Path(self.env["CLAUDE_RADAR_DIR"], "config.json").write_text(json.dumps(settings))
+
+    def test_prompt_fills_the_six_placeholders_and_keeps_other_braces(self):
+        import prs
+        pr = {"url": "https://github.com/acme/app/pull/7", "repo": "acme/app", "number": 7, "title": "ABC-1 {x}",
+              "head": "feature/abc-1", "base": "stage"}
+        text = prs.review_prompt(pr, "{repo}#{number} {head}→{base} {title} {url} {change} {}")
+        self.assertEqual(text, "acme/app#7 feature/abc-1→stage ABC-1 {x} https://github.com/acme/app/pull/7 {change} {}")
+        default = prs.review_prompt(pr, "  \n")  # blank: the built-in prompt
+        self.assertIn("(acme/app#7, feature/abc-1 → stage)", default)
+        self.assertIn("vcrm-sf:technical-architect", default)
+        self.assertIn("vcrm-pr-review", default)
+        self.assertIn("Confidence:", default)
+        self.assertNotIn("{", default.replace("{x}", ""))
+
+    def test_link_is_a_desktop_new_session_with_folder_and_prompt(self):
+        import prs
+        link = prs.review_link("/Users/me/Repos/My App", "Review #7 & check: a+b → c?\nSecond line")
+        self.assertNotIn(" ", link)
+        self.assertNotIn("+", link)  # a space must not travel as "+"
+        where, query = self.parse(link)
+        self.assertEqual(where, ("claude", "code", "/new"))
+        self.assertEqual(query, {"folder": "/Users/me/Repos/My App", "prompt": "Review #7 & check: a+b → c?\nSecond line"})
+        _, query = self.parse(prs.review_link("/f", "x" * 20000))
+        self.assertEqual(len(query["prompt"]), prs.PROMPT_LIMIT)  # Desktop's own limit
+
+    def test_checkout_found_from_a_session_in_a_worktree(self):
+        self.prs()
+        self.live("w1", cwd=str(self.worktree / "src"))
+        (self.worktree / "src").mkdir()
+        self.fire("w1", "UserPromptSubmit", cwd=str(self.worktree / "src"), prompt="build it")
+        data = self.prs()
+        self.assertEqual(data["checkouts"], {"acme/app": str(self.main)})  # the main checkout, not the worktree
+        self.assertIn("{number}", data["review_prompt_default"])
+        r = self.review("ACME/app#2")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        where, query = self.parse(r.stdout)
+        self.assertEqual((where, query["folder"]), (("claude", "code", "/new"), str(self.main)))
+        self.assertIn("pull request https://github.com/acme/app/pull/2 (acme/app#2, feature/other → stage): ABC-102 their change",
+                      query["prompt"])
+
+    def test_checkout_and_prompt_set_in_settings_win(self):
+        self.prs()
+        other = Path(self.tmp.name) / "elsewhere"
+        other.mkdir()
+        self.config(pr_checkouts={"Acme/App": str(other)}, pr_review_prompt="Review {repo}#{number} on {head}")
+        r = self.review()
+        _, query = self.parse(r.stdout)
+        self.assertEqual(query, {"folder": str(other), "prompt": "Review acme/app#2 on feature/other"})
+        # The payload lists what sessions found, once per repo whatever its case; the app applies the setting.
+        self.assertEqual(self.prs()["checkouts"], {"acme/app": None})
+
+    def test_without_a_checkout_the_review_says_where_to_set_it(self):
+        self.prs()
+        r = self.review()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("Settings › Pull requests", r.stderr)
+        self.config(pr_checkouts={"acme/app": str(Path(self.tmp.name) / "gone")})
+        r = self.review()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("does not exist", r.stderr)
+        self.assertIn("No open pull request", self.review("acme/app#99").stderr)

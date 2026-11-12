@@ -87,9 +87,17 @@ final class Store: ObservableObject {
     @Published var prError: String?
     @Published var prFetched: Date?
     @Published var prWatched: [String] = []
+    // Review with Claude: checkouts found from sessions (owner/name → folder, from `radar prs-json`),
+    // the ones set in Settings (mirrored from RadarConfig), and the built-in prompt.
+    @Published var prCheckoutsFound: [String: String] = [:]
+    @Published var prCheckoutsSet: [String: String] = [:]
+    @Published var prReviewDefault = ""
     var open: (String) -> Void = { _ in }
     var seen: (String) -> Void = { _ in }
     var refreshPRs: () -> Void = {}
+    var reviewPR: (String) -> Void = { _ in }
+
+    func checkout(_ repo: String) -> ReviewCheckout { reviewCheckout(repo, set: prCheckoutsSet, found: prCheckoutsFound) }
 }
 
 func dynamic(_ light: UInt32, _ dark: UInt32) -> NSColor {
@@ -226,6 +234,33 @@ struct PRLink: Equatable {
         aiVerdict = d["ai_verdict"] as? String
     }
 }
+
+/// Where a Review with Claude session for a repo opens: the folder set in Settings, else the one
+/// found from sessions. Usable only when the folder exists.
+struct ReviewCheckout: Equatable {
+    let folder: String?, fromSetting: Bool, exists: Bool
+    var usable: Bool { folder != nil && exists }
+}
+
+func reviewCheckout(_ repo: String, set: [String: String], found: [String: String],
+                    isFolder: (String) -> Bool = isDirectory) -> ReviewCheckout {
+    let key = repo.lowercased()
+    if let f = set.first(where: { $0.key.lowercased() == key && !$0.value.isEmpty })?.value {
+        return ReviewCheckout(folder: f, fromSetting: true, exists: isFolder(f))
+    }
+    if let f = found.first(where: { $0.key.lowercased() == key })?.value {
+        return ReviewCheckout(folder: f, fromSetting: false, exists: isFolder(f))
+    }
+    return ReviewCheckout(folder: nil, fromSetting: false, exists: false)
+}
+
+func isDirectory(_ path: String) -> Bool {
+    var dir: ObjCBool = false
+    return FileManager.default.fileExists(atPath: path, isDirectory: &dir) && dir.boolValue
+}
+
+/// "/Users/me/Repositories/app" → "~/Repositories/app".
+func abbreviatedPath(_ path: String) -> String { (path as NSString).abbreviatingWithTildeInPath }
 
 struct PRGroupStyle { let key: String, title: String, colour: NSColor }
 
