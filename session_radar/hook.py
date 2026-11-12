@@ -116,17 +116,20 @@ def refresh_context(s, now, every=0):
         s["context_at"] = now
 
 
-HISTORY_SECONDS = 24 * 3600  # how far back the timeline view can look
+# How far back the timeline view can look: a week, as long as core.py keeps the files of
+# ended sessions (PRUNE_AFTER). The caps keep a busy week's state file in the tens of KB.
+HISTORY_SECONDS = 7 * 24 * 3600
+HISTORY_CAP, AGENT_HISTORY_CAP = 2000, 500
 
 
 def set_state(s, state, kind, detail, now):
     if s.get("state") != state or s.get("kind") != kind:
         s["state_since"] = now
     if s.get("state") != state:
-        # State history for the timeline: [state, since], one entry per change, the last day only.
+        # State history for the timeline: [state, since], one entry per change, the last week only.
         history = [h for h in s.get("history", []) if now - h[1] < HISTORY_SECONDS]
         history.append([state, round(now, 1)])
-        s["history"] = history[-300:]
+        s["history"] = history[-HISTORY_CAP:]
     s["state"] = state
     s["kind"] = kind
     s["detail"] = clip(detail) if detail else None
@@ -198,11 +201,11 @@ def apply_subagent_event(s, ev, event, now):
     if event == "SubagentStop" and agent_id:
         done = agents.pop(agent_id, None)
         if done:
-            # Finished subagents stay a day for the timeline: [type, description, start, end, background].
+            # Finished subagents stay a week for the timeline: [type, description, start, end, background].
             spans = [a for a in s.get("agent_history", []) if now - a[3] < HISTORY_SECONDS]
             spans.append([done.get("type"), done.get("description"), round(done.get("started", now), 1),
                           round(now, 1), bool(done.get("background"))])
-            s["agent_history"] = spans[-100:]
+            s["agent_history"] = spans[-AGENT_HISTORY_CAP:]
         if s.get("permission_agent") == agent_id:
             s.pop("permission_agent", None)
         return True

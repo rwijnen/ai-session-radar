@@ -2,10 +2,14 @@
 
 ## 1.2.0
 
-- The Timeline has a fourth range, Custom, with a menu to pick how far back it looks: 1 to 24
-  hours. The hook keeps a day of history, so 24 hours is as far back as there is anything to show.
-- On longer ranges the time axis marks every 2 or 3 hours on whole local hours, so it keeps eight
-  labels or fewer, and shows the weekday at midnight.
+- The Timeline has a fourth range, Custom: pick a date and time, and it shows everything from then
+  up to now, at most a week back.
+- The hook keeps a week of turn history instead of a day. History older than a day builds up from
+  this version on.
+- Sessions closed since keep their lane on the Timeline, up to where they closed, marked
+  *closed*. The board and the counts leave them out, as before.
+- The time axis keeps eight labels or fewer on any range, on whole local times also across a
+  daylight-saving change, and marks midnight with the weekday and day.
 
 ## 1.1.1
 
