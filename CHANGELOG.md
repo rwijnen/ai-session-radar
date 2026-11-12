@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.0
 
 - The Timeline has a fourth range, Custom, with a menu to pick how far back it looks: 1 to 24
   hours. The hook keeps a day of history, so 24 hours is as far back as there is anything to show.
