@@ -112,7 +112,10 @@ title, or the name you gave it with `/rename`).
 
 **Subagents.** Every running subagent gets a small card under its session in Working, with its
 type, its task, its current tool call and how long it has run. Activity inside a subagent never
-moves its session, except a permission prompt, which waits for you.
+moves its session, except a permission prompt, which waits for you. A session whose turn ends
+while its subagents still run stays in Working ("Waiting for subagent") until their hand-back
+turn ends; if no hand-back comes within two minutes of the last subagent stopping, it moves to
+Done.
 
 **Jumping back.** Desktop sessions open exactly, through the app's `claude://` link. For VS Code
 the app focuses the window with the folder the session started in, also after the session moved
