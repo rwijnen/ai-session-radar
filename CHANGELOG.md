@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- The Timeline has a fourth range, Custom, with a menu to pick how far back it looks: 1 to 24
+  hours. The hook keeps a day of history, so 24 hours is as far back as there is anything to show.
+- On longer ranges the time axis marks every 2 or 3 hours on whole local hours, so it keeps eight
+  labels or fewer, and shows the weekday at midnight.
+
 ## 1.1.0
 
 - Every row in Pull requests has a button that opens the PR in your default browser, and the

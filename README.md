@@ -93,7 +93,8 @@ PRs; clicking one jumps to it.
 - **Board**: four quiet columns. A session's subagents fold into a stack under its card. Open
   and Seen appear when you hover a card; a session on a branch with an open PR gets a *PR #n* badge.
 - **Graph**: sessions grouped by project folder, each subagent linked to the session that started it.
-- **Timeline**: the last 1, 3 or 8 hours as turn-taking. Claude's turns sit above each lane's
+- **Timeline**: the last 1, 3 or 8 hours as turn-taking, or under *Custom* any number of hours
+  back up to 24 (the hook keeps a day of history). Claude's turns sit above each lane's
   centre line, yours (Needs you, Ready to review) below it with their minutes, and on the right
   how long the session waited for you.
 - **Pull requests**: see below.
