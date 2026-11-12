@@ -16,9 +16,13 @@
                         the same as JSON (used by the menu bar app; cached for a minute)
   radar prs watch|unwatch <owner/repo>
                         add or remove a repo from the watch list
+  radar review <owner/repo#number> [--print]
+                        open a new Claude Code Desktop session in the repo's local checkout with
+                        the review prompt typed in (--print shows the link instead)
 
 """
 import json
+import subprocess
 import sys
 import time
 
@@ -169,7 +173,19 @@ def main(argv):
         cmd_prs()
     elif cmd == "prs-json":
         import prs
-        print(json.dumps(prs.load(refresh="--refresh" in argv), ensure_ascii=False))
+        print(json.dumps(prs.with_checkouts(prs.load(refresh="--refresh" in argv)), ensure_ascii=False))
+    elif cmd == "review":
+        import prs
+        if len(argv) < 2:
+            sys.exit("Usage: radar review <owner/repo#number> [--print]")
+        try:
+            link = prs.review_link_for(argv[1])
+        except LookupError as e:
+            sys.exit(str(e))
+        if "--print" in argv:
+            print(link)
+        else:
+            subprocess.run(["open", link], check=False)
     else:
         sys.exit(f"Unknown command '{cmd}'. Try `radar help`.")
 

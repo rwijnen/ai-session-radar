@@ -1,5 +1,6 @@
 // Settings, and the welcome window on first launch (the same view with a greeting on top).
-// Setup: Python, the Claude Code hooks, the GitHub CLI. Features: pull requests and alerts.
+// Setup: Python, the Claude Code hooks, the GitHub CLI. Features: pull requests (with the local
+// checkouts and the prompt for Review with Claude) and alerts.
 // Updates: the in-app updater. Every feature can be switched off here.
 import AppKit
 import SwiftUI
@@ -10,6 +11,7 @@ struct SettingsView: View {
     @ObservedObject var updates: UpdateChecker
     @ObservedObject var preferences: Preferences
     let alerts: Alerts
+    @ObservedObject var store: Store
     var welcome = false
     var done: () -> Void = {}
 
@@ -19,6 +21,7 @@ struct SettingsView: View {
     @State private var prAlerts = true
     @State private var login = LaunchAtLogin.isEnabled
     @State private var newRepo = ""
+    @State private var prompt = ""
 
     var body: some View {
         Form {
@@ -76,6 +79,7 @@ struct SettingsView: View {
                         Text("PRs that involve you (author, reviewer, assignee, mention) always show, from any repository.")
                             .font(.system(size: 11)).foregroundStyle(.secondary)
                     }
+                    reviewSettings
                 }
             }
 
@@ -103,8 +107,91 @@ struct SettingsView: View {
         .onAppear {
             bounce = alerts.bounce; notify = alerts.notify; notifyDesktop = alerts.notifyDesktop; prAlerts = alerts.prAlerts
             login = LaunchAtLogin.isEnabled
+            prompt = config.prReviewPrompt.isEmpty ? store.prReviewDefault : config.prReviewPrompt
             setup.refresh()
         }
+        // The built-in prompt comes with the pull requests; it may arrive after the window opened.
+        .onChange(of: store.prReviewDefault) { _, text in if config.prReviewPrompt.isEmpty { prompt = text } }
+    }
+
+    // MARK: Review with Claude
+
+    @ViewBuilder private var reviewSettings: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Review with Claude").font(.system(size: 12, weight: .medium))
+            Text("A PR that waits on your review gets a Review with Claude button. It opens a new Claude Code Desktop session in the repository's local checkout with the prompt below typed in; press Return there to start it. The radar never starts one by itself.")
+                .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            ForEach(reviewRepos, id: \.self) { checkoutRow($0) }
+        }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Review prompt").font(.system(size: 12, weight: .medium))
+                Spacer()
+                Button("Reset to Default") { prompt = store.prReviewDefault }
+                    .controlSize(.small).disabled(config.prReviewPrompt.isEmpty)
+            }
+            TextEditor(text: $prompt)
+                .font(.system(size: 11, design: .monospaced))
+                .scrollContentBackground(.hidden)
+                .padding(4)
+                .frame(height: 190)
+                .background(RoundedRectangle(cornerRadius: 5).fill(Color(nsColor: .textBackgroundColor)))
+                .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Color.primary.opacity(0.15)))
+                .onChange(of: prompt) { _, text in
+                    // Stored only when it differs from the built-in prompt, so a later release's prompt still arrives.
+                    let blank = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    let custom = blank || text == store.prReviewDefault ? "" : text
+                    if config.prReviewPrompt != custom { config.prReviewPrompt = custom }
+                }
+            Text("Placeholders: {url} {repo} {number} {title} {head} {base}. Empty uses the built-in prompt.")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+        }
+    }
+
+    /// Watched repos, repos with open PRs, and repos with a checkout set here.
+    private var reviewRepos: [String] {
+        var seen = Set<String>(), out: [String] = []
+        for r in config.prRepos + store.prs.map(\.repo) + config.prCheckouts.keys.sorted() where seen.insert(r.lowercased()).inserted {
+            out.append(r)
+        }
+        return out.sorted { $0.lowercased() < $1.lowercased() }
+    }
+
+    private func checkoutRow(_ repo: String) -> some View {
+        let c = store.checkout(repo)
+        let text: String = {
+            guard let folder = c.folder else { return "No checkout found: choose its folder, or run a Claude session in it once" }
+            let path = abbreviatedPath(folder)
+            if !c.exists { return "\(path) · folder not found" }
+            return c.fromSetting ? "\(path) · set here" : "\(path) · found from your Claude sessions"
+        }()
+        return HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(repo).font(.system(size: 12, design: .monospaced))
+                Text(text).font(.system(size: 11)).foregroundStyle(c.usable ? Color.secondary : Color.orange)
+                    .lineLimit(1).truncationMode(.middle).help(c.folder ?? "")
+            }
+            Spacer()
+            Button("Choose…") { chooseCheckout(repo, current: c.folder) }.controlSize(.small)
+            if c.fromSetting {
+                Button("Reset") { config.prCheckouts = config.prCheckouts.filter { $0.key.lowercased() != repo.lowercased() } }
+                    .controlSize(.small).help("Use the checkout found from your Claude sessions again")
+            }
+        }
+    }
+
+    private func chooseCheckout(_ repo: String, current: String?) {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Use Folder"
+        panel.message = "The local checkout of \(repo), where Review with Claude sessions open"
+        if let current { panel.directoryURL = URL(fileURLWithPath: current) }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        var set = config.prCheckouts.filter { $0.key.lowercased() != repo.lowercased() }
+        set[repo] = url.path
+        config.prCheckouts = set
     }
 
     private var validRepo: Bool {
