@@ -142,6 +142,42 @@ and target branch, checks (the failing ones by name), the review state, conflict
 how long it has been open, and the Claude session working on its branch. The button at the right
 of a row (or its right-click menu, or a double-click) opens the PR in your default browser.
 
+**Review with Claude.** A PR that waits on your review also gets a second button (a magnifying
+glass with a sparkle), and the same item in its right-click menu. It opens a **new Claude Code
+Desktop session** in your local checkout of that repository, with a review prompt already typed
+in. Nothing runs until you press Return there, so you can read or change the prompt first. The
+radar never starts a session by itself: no notification action, no automatic trigger.
+
+- **Which folder.** The radar looks at the folders your Claude sessions ran in (the last week of
+  sessions, and the ones running now). Any of them whose `origin` remote is the PR's repository
+  counts, and a git worktree counts as its main checkout. If you have several clones, the one
+  used most recently wins. Settings › Pull requests lists each repository with its folder;
+  **Choose…** sets one by hand and **Reset** goes back to the found one. Without a known folder
+  the button is off, and its tooltip points to that setting.
+- **The prompt.** Also in Settings › Pull requests, a template with the placeholders `{url}`,
+  `{repo}`, `{number}`, `{title}`, `{head}` and `{base}`. The built-in prompt asks for a
+  read-only architecture review with the `vcrm-sf:technical-architect` skill. It reads the PR
+  with `gh pr view` and `gh pr diff`, judges the design (Well-Architected fit, governor limits,
+  integration pattern, sharing and security), checks the change against its
+  `openspec/changes/<change>/design.md`, the capability's `SD-*.md` and the `DR-<n>` records
+  that SD cites, and reads the CI's `vcrm-pr-review` comment instead of redoing its release
+  checks. It does not check out the branch, post to GitHub or touch a Salesforce org, and it
+  ends with findings ranked by severity and a `Confidence:` line. Empty, or **Reset to
+  Default**, uses the built-in prompt again.
+- **How it opens Desktop.** Through Claude Desktop's own link
+  `claude://code/new?folder=<path>&prompt=<text>`. It is undocumented, like the `claude://` link
+  the radar uses to jump to a session, so a Desktop release may change it. Tried with Claude
+  Desktop 5.1231.2:
+  - The link opens a new session page with the prompt **typed into the composer, not sent**.
+  - A folder Claude Code has not trusted yet first shows **Trust this workspace?**, and the
+    session's folder only switches to it after you accept. A checkout you already ran Claude
+    Code in was trusted then, so it should open without the question (only the untrusted case
+    was tried).
+  - Desktop cuts the prompt at 14,336 characters; so does the radar.
+
+The same works from the command line: `radar review <owner/repo#number>` opens it, and `--print`
+shows the link instead.
+
 **AI review.** If your pipeline posts an AI review comment ending in the marker
 `<!-- vcrm-pr-review sha=<commit> verdict=<APPROVE|REQUEST_CHANGES|COMMENT> -->`, the row shows its
 verdict. Hovering the label opens the whole review as GitHub renders it, tables and collapsible
@@ -226,6 +262,7 @@ The Python package doubles as a command line, handy over SSH or in a script:
 ```bash
 ~/.claude/radar/lib/bin/radar            # every session, grouped, in the terminal
 ~/.claude/radar/lib/bin/radar prs        # open pull requests
+~/.claude/radar/lib/bin/radar review ValanticDMC/Miele#222   # Review with Claude in Desktop
 ~/.claude/radar/lib/bin/radar serve      # the board in a browser, http://127.0.0.1:7878
 ~/.claude/radar/lib/bin/radar help       # everything else
 ```

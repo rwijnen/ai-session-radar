@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- A pull request that waits on your review has a **Review with Claude** button, next to the
+  open-in-browser button and in its right-click menu. It opens a new Claude Code Desktop session
+  in your local checkout of the repository, with an architecture review prompt typed in; the
+  session starts when you press Return. The radar never starts one by itself.
+- The checkout is found from the folders your Claude sessions ran in (a worktree counts as its
+  main checkout). Settings › Pull requests shows it per repository and lets you choose another.
+  Without one the button is off and says where to set it.
+- The prompt is a template in Settings › Pull requests with `{url}`, `{repo}`, `{number}`,
+  `{title}`, `{head}` and `{base}`. The built-in one asks for a read-only review with the
+  `vcrm-sf:technical-architect` skill that leaves the CI's release checks to the CI.
+- `radar review <owner/repo#number> [--print]` does the same from the command line.
+
 ## 1.2.0
 
 - The Timeline has a fourth range, Custom, with a menu to pick how far back it looks: 1 to 24

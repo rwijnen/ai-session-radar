@@ -2,6 +2,8 @@
 // who has to act. Each row: repo and number, title, Jira key, author and target branch, checks,
 // review state, size, comments, the AI review verdict and the Claude session on the PR's branch.
 // The row's button, its right-click menu and a double-click open the PR in the default browser.
+// A PR that waits on your review also gets Review with Claude: a new Claude Code Desktop session
+// in the repo's local checkout with the review prompt typed in (Settings › Pull requests).
 // Hovering the AI review label opens the review itself, rendered as GitHub renders it.
 import SwiftUI
 import WebKit
@@ -126,11 +128,14 @@ struct PRRow: View {
             }
             .font(.system(size: 11)).foregroundStyle(.secondary)
             .padding(.vertical, 9).padding(.trailing, 6)
-            Button { openURL(pr.url) } label: {
-                Image(systemName: "arrow.up.right.square").font(.system(size: 14))
+            HStack(spacing: 8) {
+                if pr.requestedMe { reviewButton }
+                Button { openURL(pr.url) } label: {
+                    Image(systemName: "arrow.up.right.square").font(.system(size: 14))
+                }
+                .buttonStyle(.borderless)
+                .help("Open \(pr.repoName) #\(pr.number) in your browser")
             }
-            .buttonStyle(.borderless)
-            .help("Open \(pr.repoName) #\(pr.number) in your browser")
             .padding(.top, 9).padding(.trailing, 12)
         }
         .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor)))
@@ -140,7 +145,39 @@ struct PRRow: View {
         .contentShape(Rectangle())
         .onHover { hover = $0 }
         .onTapGesture(count: 2) { openURL(pr.url) }
-        .contextMenu { Button("Open in Browser") { openURL(pr.url) } }
+        .contextMenu {
+            Button("Open in Browser") { openURL(pr.url) }
+            if pr.requestedMe {
+                let c = store.checkout(pr.repo)
+                Button(c.usable ? "Review with Claude" : "Review with Claude (set the checkout in Settings)") { store.reviewPR(pr.id) }
+                    .disabled(!c.usable)
+            }
+        }
+    }
+
+    /// Review with Claude, only on PRs that wait on your review. Off, with the reason as its
+    /// tooltip, while no local checkout of the repo is known.
+    @ViewBuilder private var reviewButton: some View {
+        let c = store.checkout(pr.repo)
+        let tip = reviewHelp(c)
+        Button { store.reviewPR(pr.id) } label: {
+            Image(systemName: "sparkle.magnifyingglass").font(.system(size: 14))
+        }
+        .buttonStyle(.borderless)
+        .disabled(!c.usable)
+        .help(tip)
+        // A disabled button shows no tooltip of its own, so a clear layer over it carries the reason.
+        .overlay { if !c.usable { Color.clear.contentShape(Rectangle()).help(tip) } }
+    }
+
+    private func reviewHelp(_ c: ReviewCheckout) -> String {
+        guard let folder = c.folder else {
+            return "Review with Claude: no local checkout of \(pr.repo) is known. Set its folder under Settings › Pull requests, or run a Claude session in it once."
+        }
+        if !c.exists {
+            return "Review with Claude: the checkout set for \(pr.repo) does not exist (\(abbreviatedPath(folder))). Change it under Settings › Pull requests."
+        }
+        return "Review with Claude: opens a new Claude Code Desktop session in \(abbreviatedPath(folder)) with the architecture review prompt typed in. Press Return there to start it."
     }
 
     @ViewBuilder private var checksPills: some View {
