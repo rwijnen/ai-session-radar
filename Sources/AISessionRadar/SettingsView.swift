@@ -1,8 +1,9 @@
 // Settings, and the welcome window on first launch (the same view with a greeting on top).
 // Setup: Python, the Claude Code hooks, the GitHub CLI. Features: pull requests (with the local
-// checkouts and the prompt for Review with Claude) and alerts.
+// checkouts and the prompt for Review with Claude), alerts and the keyboard shortcut.
 // Updates: the in-app updater. Every feature can be switched off here.
 import AppKit
+import Carbon.HIToolbox
 import SwiftUI
 
 struct SettingsView: View {
@@ -12,6 +13,7 @@ struct SettingsView: View {
     @ObservedObject var preferences: Preferences
     let alerts: Alerts
     @ObservedObject var store: Store
+    @ObservedObject var shortcut: GlobalShortcut
     var welcome = false
     var done: () -> Void = {}
 
@@ -54,6 +56,26 @@ struct SettingsView: View {
                 Toggle("Open at login", isOn: $login)
                     .onChange(of: login) { _, on in login = LaunchAtLogin.set(on) }
                     .disabled(!LaunchAtLogin.isAvailable)
+            }
+
+            Section("Keyboard shortcut") {
+                Toggle("Open the board from any app", isOn: $preferences.shortcutEnabled)
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Shortcut")
+                        Text("Click it, then press the new keys, with ⌘, ⌃ or ⌥ (a function key works alone); ⎋ cancels. Pressing the shortcut while the board is in front closes it again.")
+                            .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                    if preferences.shortcut != .standard {
+                        Button("Reset") { preferences.shortcut = .standard }.help("Back to \(KeyCombo.standard.display)")
+                    }
+                    ShortcutRecorder(preferences: preferences, shortcut: shortcut)
+                }
+                .disabled(!preferences.shortcutEnabled)
+                if let problem = shortcut.problem {
+                    Text(problem).font(.system(size: 11)).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             Section("Pull requests") {
@@ -231,6 +253,47 @@ struct SettingsView: View {
                     .textSelection(.enabled)
             }
         }
+    }
+}
+
+/// Shows the keyboard shortcut; click it and the next key press with ⌘, ⌃ or ⌥ becomes the new one.
+/// While it listens, the current shortcut is off, so pressing that same shortcut records it instead of
+/// opening the board.
+struct ShortcutRecorder: View {
+    @ObservedObject var preferences: Preferences
+    let shortcut: GlobalShortcut
+    @State private var monitor: Any?
+
+    var body: some View {
+        Button { monitor == nil ? start() : stop() } label: {
+            Text(monitor == nil ? preferences.shortcut.display : "Press the keys…")
+                .font(.system(size: 12, weight: .medium)).monospacedDigit()
+                .frame(minWidth: 110)
+        }
+        .onDisappear(perform: stop)
+    }
+
+    private func start() {
+        shortcut.paused = true
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            if event.keyCode == UInt16(kVK_Escape) && flags.isDisjoint(with: [.command, .control, .option, .shift]) {
+                stop()
+            } else if let combo = KeyCombo(keyCode: event.keyCode, flags: flags,
+                                           characters: event.characters(byApplyingModifiers: [])) {
+                preferences.shortcut = combo
+                stop()
+            } else {
+                NSSound.beep()  // a plain key or ⇧ alone: keep listening
+            }
+            return nil
+        }
+    }
+
+    private func stop() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
+        shortcut.paused = false
     }
 }
 
