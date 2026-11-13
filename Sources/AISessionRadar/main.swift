@@ -2,9 +2,10 @@
 //
 // Shows how many Claude sessions need you, are ready to review and are working,
 // as coloured counts in the menu bar. The menu lists the sessions; clicking one
-// brings its app to the front. "Open board" (or opening the app again from
-// Spotlight or Finder) shows the board window. All data comes from `radar json`,
-// so the logic lives in one place (the Python package) and the app only draws it.
+// brings its app to the front. "Open board", the keyboard shortcut (⌃⌥⌘R unless changed
+// in Settings) or opening the app again from Spotlight or Finder shows the board window.
+// All data comes from `radar json`, so the logic lives in one place (the Python
+// package) and the app only draws it.
 // On first launch a welcome window checks Python, installs the Claude Code hooks and
 // shows the settings; the in-app updater keeps the app current from GitHub Releases.
 import AppKit
@@ -19,6 +20,7 @@ final class RadarApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let setup = Setup()
     let config = RadarConfig()
     let preferences = Preferences()
+    lazy var shortcut = GlobalShortcut(preferences: preferences)
     var updates: UpdateChecker!
     var settings: SettingsWindow!
     private var watchers: [Any] = []
@@ -37,10 +39,13 @@ final class RadarApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         updates = MainActor.assumeIsolated { UpdateChecker(preferences: preferences) }
         settings = SettingsWindow { [unowned self] welcome, close in
             AnyView(SettingsView(setup: setup, config: config, updates: updates, preferences: preferences, alerts: alerts,
-                                 store: store, welcome: welcome, done: { [unowned self] in preferences.setupDone = true; close() }))
+                                 store: store, shortcut: shortcut, welcome: welcome,
+                                 done: { [unowned self] in preferences.setupDone = true; close() }))
         }
         settings.onClose = { [weak self] in self?.windowClosed() }
         board.onClose = { [weak self] in self?.windowClosed() }
+        shortcut.action = { [weak self] in self?.board.toggle() }
+        shortcut.start()
         NSApp.mainMenu = mainMenu()
         let menu = NSMenu()
         menu.delegate = self

@@ -316,8 +316,20 @@ final class BoardWindow: NSObject, NSWindowDelegate {
             window = w
         }
         NSApp.setActivationPolicy(.regular)
+        if window?.isMiniaturized == true { window?.deminiaturize(nil) }
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// The keyboard shortcut: brings the board to the front, or closes it when it is in front already.
+    func toggle() {
+        guard let w = window, NSApp.isActive, w.isVisible, w.isKeyWindow else {
+            show()
+            return
+        }
+        w.close()
+        // Give the keyboard back to the app that was in front before, unless Settings is still open.
+        if !NSApp.windows.contains(where: { $0.isVisible && $0.styleMask.contains(.titled) }) { NSApp.hide(nil) }
     }
 
     /// Open on screen; the Dock icon only exists then.
