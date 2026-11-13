@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.0
+
+- A keyboard shortcut opens the board from any app: **⌃⌥⌘R**. It brings the board to the front;
+  pressed again while the board is in front, it closes it and hands the keyboard back to the app
+  you were in. It needs no Accessibility permission.
+- **Settings › Keyboard shortcut** switches it off or records other keys (with ⌘, ⌃ or ⌥, or a
+  function key alone). When another app already holds the keys, macOS refuses them and Settings
+  says so.
+- Opening the board brings it back from the Dock when it was minimised.
+
 ## 1.3.0
 
 - A pull request that waits on your review has a **Review with Claude** button, next to the
