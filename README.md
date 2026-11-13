@@ -88,7 +88,8 @@ PRs; clicking one jumps to it.
 | **Working** | Claude is busy |
 | **Done** | the turn finished with nothing to review, or you marked it seen |
 
-**Board** (⌘B in the menu, or open the app again from Spotlight). Four views, ⌘1 to ⌘4:
+**Board** (⌃⌥⌘R from any app, ⌘B in the menu, or open the app again from Spotlight). Four views,
+⌘1 to ⌘4:
 
 - **Board**: four quiet columns. A session's subagents fold into a stack under its card. Open
   and Seen appear when you hover a card; a session on a branch with an open PR gets a *PR #n* badge.
@@ -193,6 +194,14 @@ notification appears (with a sound for Needs you); clicking it opens the session
 get the jump but no notification by default, since the Desktop app already notifies. A PR that
 starts waiting on you, and your own PR once it is ready to merge, alert the same way.
 
+### Keyboard shortcut
+
+**⌃⌥⌘R** opens the board from any app and brings it to the front; pressed again while the board
+is in front, it closes the board and hands the keyboard back to the app you were in. To use other
+keys, click the shortcut in **Settings › Keyboard shortcut** and press the new ones: they need ⌘,
+⌃ or ⌥, except a function key, which works alone. If another app already holds those keys, macOS
+refuses them and Settings says so. The shortcut needs no Accessibility permission.
+
 ## Switching things off
 
 Everything optional has a switch in **Settings**:
@@ -207,6 +216,7 @@ Everything optional has a switch in **Settings**:
 | Also for pull requests | no alerts for PRs |
 | Check for updates automatically | only when you choose Check for Updates… |
 | Open at login | start it yourself |
+| Open the board from any app | no keyboard shortcut; ⌃⌥⌘R (or your own keys) goes to the app in front again |
 
 The hooks themselves are switched off with **Remove** in Settings (or `radar uninstall`).
 
