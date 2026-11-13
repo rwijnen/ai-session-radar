@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.4.0
+## 1.5.0
 
 - The Timeline's Custom range takes a date and time instead of a number of hours, and shows
   everything from then up to now, at most a week back.
@@ -10,6 +10,16 @@
   *closed*. The board and the counts leave them out, as before.
 - The time axis keeps eight labels or fewer on any range up to a week, on whole local times also
   across a daylight-saving change, and marks midnight with the weekday and day.
+
+## 1.4.0
+
+- A keyboard shortcut opens the board from any app: **⌃⌥⌘R**. It brings the board to the front;
+  pressed again while the board is in front, it closes it and hands the keyboard back to the app
+  you were in. It needs no Accessibility permission.
+- **Settings › Keyboard shortcut** switches it off or records other keys (with ⌘, ⌃ or ⌥, or a
+  function key alone). When another app already holds the keys, macOS refuses them and Settings
+  says so.
+- Opening the board brings it back from the Dock when it was minimised.
 
 ## 1.3.0
 
