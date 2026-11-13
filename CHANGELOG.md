@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.0
+
+- The Timeline's Custom range takes a date and time instead of a number of hours, and shows
+  everything from then up to now, at most a week back.
+- The hook keeps a week of turn history instead of a day. History older than a day builds up from
+  this version on.
+- Sessions closed since keep their lane on the Timeline, up to where they closed, marked
+  *closed*. The board and the counts leave them out, as before.
+- The time axis keeps eight labels or fewer on any range up to a week, on whole local times also
+  across a daylight-saving change, and marks midnight with the weekday and day.
+
 ## 1.4.0
 
 - A keyboard shortcut opens the board from any app: **⌃⌥⌘R**. It brings the board to the front;

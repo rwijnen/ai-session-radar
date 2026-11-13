@@ -10,8 +10,9 @@ struct Row: Identifiable, Equatable {
     let isAgent: Bool, agentType: String, parentId: String?, parentName: String?, background: Bool, tools: Int
     // Context of the latest reply (tokens), its model, and the window only where the model id states it.
     let contextTokens: Int?, model: String?, contextWindow: Int?
-    // Timeline: state changes [(state, since)] and finished subagents (the last day).
-    let history: [(state: String, at: Double)], agentHistory: [AgentSpan]
+    // Timeline: state changes [(state, since)] and finished subagents (the last week), and
+    // whether the session has been closed (then only the timeline shows it).
+    let history: [(state: String, at: Double)], agentHistory: [AgentSpan], closed: Bool
     // The open pull request of the session's branch, if there is one.
     let pr: PRLink?
 
@@ -25,6 +26,7 @@ struct Row: Identifiable, Equatable {
     init?(_ d: [String: Any]) {
         guard let id = d["id"] as? String, let column = d["column"] as? String else { return nil }
         self.id = id; self.column = column
+        closed = d["state"] as? String == "ended"
         name = d["name"] as? String ?? id
         app = d["app"] as? String ?? ""
         appKey = d["app_key"] as? String ?? "terminal"
@@ -78,6 +80,8 @@ func tokenCount(_ n: Int) -> String {
 /// What the board and the menu draw from; refreshed by the app every 2.5 s.
 final class Store: ObservableObject {
     @Published var rows: [Row] = []
+    /// Sessions closed in the last week: only the timeline draws them.
+    @Published var closed: [Row] = []
     @Published var counts: [String: Int] = [:]
     @Published var error: String?
     @Published var updated: Date?
