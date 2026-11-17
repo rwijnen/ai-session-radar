@@ -49,7 +49,10 @@ class Handler(BaseHTTPRequestHandler):
         row = core.find(rows, parts[2])
         if not row:
             return self._send(404, {"error": "no such session"})
-        core.open_session(row) if parts[1] == "open" else core.mark_seen([row["id"]])
+        if parts[1] == "open":
+            core.open_session(row, next((r for r in rows if r["id"] == row.get("parent_id")), None))
+        else:
+            core.mark_seen([row["id"]])
         self._send(200, {"ok": True})
 
 
