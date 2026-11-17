@@ -43,9 +43,12 @@ class Harness(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         self.assertEqual(r.stdout, "")
 
-    def board(self):
+    def radar_json(self):
         out = subprocess.run([sys.executable, str(CLI), "json"], env=self.env, capture_output=True, text=True, check=True)
-        return {r["id"]: r for r in json.loads(out.stdout)["sessions"]}
+        return json.loads(out.stdout)
+
+    def board(self):
+        return {r["id"]: r for r in self.radar_json()["sessions"]}
 
 
 class RadarTest(Harness):
@@ -109,6 +112,23 @@ class RadarTest(Harness):
         board = self.board()
         self.assertNotIn("s5", board)
         self.assertNotIn("s6", board)
+
+    def test_closed_sessions_are_listed_apart_for_the_timeline(self):
+        self.live("c1", pid=999999)  # closed without SessionEnd: the process is gone
+        self.fire("c1", "UserPromptSubmit", prompt="x")
+        self.live("c2")
+        self.fire("c2", "UserPromptSubmit", prompt="y")
+        self.fire("c2", "SessionEnd", reason="exit")
+        self.live("c3")
+        self.fire("c3", "UserPromptSubmit", prompt="still open")
+        data = self.radar_json()
+        closed = {r["id"]: r for r in data["closed"]}
+        self.assertEqual(set(closed), {"c1", "c2"})
+        self.assertEqual([r["id"] for r in data["sessions"]], ["c3"])
+        self.assertEqual(data["counts"]["working"], 1)
+        for row in closed.values():  # each lane stops where the session closed
+            self.assertEqual([h[0] for h in row["history"]], ["working", "ended"])
+            self.assertEqual(row["history"][-1][1], round(row["since"], 1))
 
     def test_untracked_live_session_is_listed(self):
         self.live("s7", status="busy", name="old session")
@@ -235,6 +255,21 @@ class RadarTest(Harness):
         self.assertLessEqual(start, end)
         self.live("h2", status="busy")  # untracked: one span for its current state
         self.assertEqual(self.board()["h2"]["history"][0][0], "working")
+
+    def test_history_keeps_a_week(self):
+        self.live("h3")
+        self.fire("h3", "UserPromptSubmit", prompt="go")
+        day = 24 * 3600
+        now = time.time()
+        self.state("h3", history=[["working", now - 8 * day], ["idle", now - 6 * day], ["working", now - 60]],
+                    agent_history=[["Explore", None, now - 8 * day, now - 8 * day + 60, False],
+                                   ["Explore", None, now - 6 * day, now - 6 * day + 60, False]])
+        self.fire("h3", "SubagentStart", agent_id="y1", agent_type="Explore")
+        self.fire("h3", "SubagentStop", agent_id="y1", agent_type="Explore", agent_transcript_path="/t")
+        self.fire("h3", "Stop", last_assistant_message="Shall I go on?")
+        row = self.board()["h3"]
+        self.assertEqual([h[0] for h in row["history"]], ["idle", "working", "needs_you"])
+        self.assertEqual(len(row["agent_history"]), 2)
 
     def test_placeholder_names_give_way_to_the_tab_title(self):
         transcript = Path(self.tmp.name) / "t.jsonl"
