@@ -13,6 +13,7 @@ import re
 import subprocess
 import time
 from pathlib import Path
+from urllib.parse import quote
 
 from hook import AGENT_STALE, SESSIONS_DIR, STATE_DIR, running_agents, safe_id
 
@@ -37,6 +38,8 @@ APP_NAMES = {
 UNTRACKED_GRACE = 15 * 60      # a hook file without a live process stays this long
 HANDBACK_GRACE = 2 * 60        # a session waiting for subagents that all stopped is done after this
 PRUNE_AFTER = 7 * 24 * 3600    # state files of ended sessions are removed after this
+VSCODE = "com.microsoft.VSCode"
+VSCODE_FOCUS_WAIT = 0.8        # seconds between focusing a VS Code window and sending it a link
 
 
 def _read_json(path, default=None):
@@ -421,8 +424,19 @@ def open_session(row, session=None):
         # `code <folder>`: on macOS that starts a second VS Code (`open -n`) that passes the folder
         # on and quits, and with a folder no window has open it adds a window.
         folder = start_folder(session)
-        if not folder or subprocess.run(["open", "-b", "com.microsoft.VSCode", folder], check=False).returncode != 0:
-            subprocess.run(["open", "-b", "com.microsoft.VSCode"], check=False)
+        handed = bool(folder) and subprocess.run(["open", "-b", VSCODE, folder], check=False).returncode == 0
+        if not handed:
+            subprocess.run(["open", "-b", VSCODE], check=False)
+        elif entry == "claude-vscode":
+            # Sessions in one folder share a window, so focusing it leaves whichever Claude tab was
+            # in front. The extension's open link brings the session's own tab forward. VS Code
+            # gives a link to the window focused last, and a window without the session would open
+            # it in a second tab, so the link waits for the folder's window to take the focus.
+            # A session in VS Code's terminal has no tab, so it gets no link.
+            time.sleep(VSCODE_FOCUS_WAIT)
+            sid = session.get("parent_id") or session["id"]
+            link = f"vscode://anthropic.claude-code/open?session={quote(sid, safe='')}"
+            subprocess.run(["open", "-b", VSCODE, link], check=False)
     else:
         bundle = {"Ghostty": "com.mitchellh.ghostty", "Terminal": "com.apple.Terminal",
                   "iTerm": "com.googlecode.iterm2", "Warp": "dev.warp.Warp-Stable"}.get(row["app"])
