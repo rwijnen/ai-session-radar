@@ -121,8 +121,10 @@ Done.
 
 **Jumping back.** Desktop sessions open exactly, through the app's `claude://` link. For VS Code
 the app focuses the window with the folder the session started in, also after the session moved
-into a git worktree; for terminals it brings the terminal to the
-front. Picking the right tab there is up to you: neither app allows that from outside.
+into a git worktree, and then brings the session's own tab forward through the Claude Code
+extension's `vscode://anthropic.claude-code/open` link. The first time, VS Code asks whether
+Claude Code may open the link. For terminals, and for Claude Code running in VS Code's terminal,
+it brings the terminal to the front; picking the right tab there is up to you.
 
 ### Pull requests
 
