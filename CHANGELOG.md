@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.1
+
+- Opening a VS Code session brings its own Claude Code tab to the front. Before, it only focused
+  the window, so with several sessions in one folder you got whichever tab was in front. The
+  radar now hands the session to the Claude Code extension's open link once the window has the
+  focus. The first time, VS Code asks whether Claude Code may open the link; tick "Don't ask
+  again" to skip that from then on. A session in VS Code's terminal still only focuses the window.
+- Opening a subagent from the board focuses its session's window, as the menu bar already did,
+  instead of the folder the subagent works in.
+
 ## 1.4.0
 
 - A keyboard shortcut opens the board from any app: **⌃⌥⌘R**. It brings the board to the front;
