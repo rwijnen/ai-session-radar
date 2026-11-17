@@ -103,15 +103,18 @@ final class RadarApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func refresh() {
         DispatchQueue.global(qos: .utility).async {
             let data = self.radar(["json"])
-            var parsed: [Row] = [], counts: [String: Int] = [:], error: String? = nil
+            var parsed: [Row] = [], closed: [Row] = [], counts: [String: Int] = [:], error: String? = nil
             if let data, let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 parsed = (json["sessions"] as? [[String: Any]] ?? []).compactMap(Row.init)
+                closed = (json["closed"] as? [[String: Any]] ?? []).compactMap(Row.init)
                 counts = json["counts"] as? [String: Int] ?? [:]
             } else {
                 error = self.setup.python == nil ? "Python 3 not found: open Settings to finish setup" : "radar did not answer (\(Setup.cli.path))"
             }
             DispatchQueue.main.async {
                 if self.store.rows != parsed { self.store.rows = parsed }
+                // Skip a failed refresh here too, so closed lanes don't blink away.
+                if error == nil && self.store.closed != closed { self.store.closed = closed }
                 if self.store.counts != counts { self.store.counts = counts }
                 if self.store.error != error { self.store.error = error }
                 self.store.updated = Date()
