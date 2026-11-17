@@ -290,7 +290,7 @@ class RadarTest(Harness):
         board = self.board()
         self.assertEqual((board["v1"]["name"], board["d1"]["name"]), ("My own name", "My own name"))
 
-    def test_vscode_session_opens_the_window_it_started_in(self):
+    def test_vscode_session_opens_its_tab_in_the_window_it_started_in(self):
         sys.path.insert(0, str(ROOT / "session_radar"))
         import core
         from unittest import mock
@@ -301,14 +301,26 @@ class RadarTest(Harness):
         row = {"id": "w1", "app": "VS Code", "entrypoint": "claude-vscode", "cwd": "/repo/app-feature-1",
                "transcript_path": str(transcript)}
         agent = {**row, "id": "w1:a1", "parent_id": "w1", "transcript_path": None}
-        done = lambda args, check=False: subprocess.CompletedProcess(args, 0)
-        with mock.patch.object(core.subprocess, "run", side_effect=done) as run, mock.patch.object(core, "mark_seen"):
+        terminal = {**row, "id": "t1", "app": "VS Code terminal", "entrypoint": "cli"}
+        refused = {**row, "id": "r1", "cwd": "/gone", "transcript_path": None}
+        exits = lambda args, check=False: subprocess.CompletedProcess(args, 1 if "/gone" in args else 0)
+        patches = (mock.patch.object(core.subprocess, "run", side_effect=exits), mock.patch.object(core, "mark_seen"),
+                   mock.patch.object(core.time, "sleep"))
+        with patches[0] as run, patches[1], patches[2] as sleep:
             core.open_session(row)                                  # moved into a worktree: its start folder
-            core.open_session(agent, row)                           # a subagent: its session's window
+            core.open_session(agent, row)                           # a subagent: its session's window and tab
+            core.open_session(agent)                                # the same without its parent row
             core.open_session({**row, "transcript_path": None})     # no transcript: the current folder
+            core.open_session(terminal)                             # VS Code's terminal: the window only
+            core.open_session(refused)                              # folder refused: VS Code, but no link
         calls = [c.args[0] for c in run.call_args_list]
         vscode = ["open", "-b", "com.microsoft.VSCode"]
-        self.assertEqual(calls, [vscode + ["/repo/app"]] * 2 + [vscode + ["/repo/app-feature-1"]])
+        tab = vscode + ["vscode://anthropic.claude-code/open?session=w1"]
+        self.assertEqual(calls, [vscode + ["/repo/app"], tab] * 2
+                         + [vscode + ["/repo/app-feature-1"], tab] * 2
+                         + [vscode + ["/repo/app"]]
+                         + [vscode + ["/gone"], vscode])
+        self.assertEqual(sleep.call_count, 4)  # each link waits for its window to take the focus
 
     def test_bad_input_never_fails_the_hook(self):
         r = subprocess.run([sys.executable, str(HOOK)], input="not json", text=True, env=self.env, capture_output=True)
