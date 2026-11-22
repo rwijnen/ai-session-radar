@@ -562,8 +562,7 @@ class ReviewWithClaudeTest(PRHarness):
         self.assertEqual(text, "acme/app#7 feature/abc-1→stage ABC-1 {x} https://github.com/acme/app/pull/7 {change} {}")
         default = prs.review_prompt(pr, "  \n")  # blank: the built-in prompt
         self.assertIn("(acme/app#7, feature/abc-1 → stage)", default)
-        self.assertIn("vcrm-sf:technical-architect", default)
-        self.assertIn("vcrm-pr-review", default)
+        self.assertIn("gh pr diff 7 --repo acme/app", default)
         self.assertIn("Confidence:", default)
         self.assertNotIn("{", default.replace("{x}", ""))
 

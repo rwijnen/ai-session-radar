@@ -159,14 +159,12 @@ radar never starts a session by itself: no notification action, no automatic tri
   the button is off, and its tooltip points to that setting.
 - **The prompt.** Also in Settings › Pull requests, a template with the placeholders `{url}`,
   `{repo}`, `{number}`, `{title}`, `{head}` and `{base}`. The built-in prompt asks for a
-  read-only architecture review with the `vcrm-sf:technical-architect` skill. It reads the PR
-  with `gh pr view` and `gh pr diff`, judges the design (Well-Architected fit, governor limits,
-  integration pattern, sharing and security), checks the change against its
-  `openspec/changes/<change>/design.md`, the capability's `SD-*.md` and the `DR-<n>` records
-  that SD cites, and reads the CI's `vcrm-pr-review` comment instead of redoing its release
-  checks. It does not check out the branch, post to GitHub or touch a Salesforce org, and it
-  ends with findings ranked by severity and a `Confidence:` line. Empty, or **Reset to
-  Default**, uses the built-in prompt again.
+  read-only code review: it reads the PR with `gh pr view` and `gh pr diff`, looks for bugs,
+  security problems, missing tests and hard-to-change design choices, and reads existing review
+  comments instead of repeating them. It does not check out the branch, change files or post to
+  GitHub, and it ends with findings ranked by severity and a `Confidence:` line. Empty, or
+  **Reset to Default**, uses the built-in prompt again. Swap in your own review skill or house
+  rules here.
 - **How it opens Desktop.** Through Claude Desktop's own link
   `claude://code/new?folder=<path>&prompt=<text>`. It is undocumented, like the `claude://` link
   the radar uses to jump to a session, so a Desktop release may change it. Tried with Claude

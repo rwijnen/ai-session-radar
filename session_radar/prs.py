@@ -261,15 +261,12 @@ def by_branch():
 # --- Review with Claude -------------------------------------------------------------------
 
 REVIEW_PROMPT = """\
-Run a read-only architecture review of pull request {url} ({repo}#{number}, {head} → {base}): {title}
-
-Use the vcrm-sf:technical-architect skill.
+Run a read-only code review of pull request {url} ({repo}#{number}, {head} → {base}): {title}
 
 - Read the PR with `gh pr view {number} --repo {repo} --comments` and `gh pr diff {number} --repo {repo}`.
-- Judge the design choices: fit with the Salesforce Well-Architected framework, governor limits, the integration pattern, and sharing and security.
-- Check that the change fits its openspec/changes/<change>/design.md, the capability's SD-*.md and the DR-<n> records that SD cites. Read them as they are on the PR's branch, for example with `gh api -H "Accept: application/vnd.github.raw" "repos/{repo}/contents/<path>?ref={head}"`.
-- The CI has already posted a release review on the PR (the comment with the vcrm-pr-review marker). Read it instead of redoing its release checks.
-- Stay read-only: don't check out the branch, don't post anything to GitHub, and don't touch any Salesforce org.
+- Look for bugs, security problems, missing tests and design choices that will be hard to change later. Read surrounding code in this checkout where the diff alone does not tell you enough.
+- If the PR already has review comments, read them instead of repeating what they say.
+- Stay read-only: don't check out the branch, don't change files and don't post anything to GitHub.
 
 End with your findings ranked by severity, each with its file and line, and a `Confidence:` line.
 """

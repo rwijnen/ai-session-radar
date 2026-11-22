@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.1
+
+- The built-in Review with Claude prompt is a general read-only code review that works in any
+  repository. It no longer assumes a Salesforce project or a particular review skill. A prompt
+  you set in Settings › Pull requests stays as it is.
+
 ## 1.5.0
 
 - The Timeline's Custom range takes a date and time instead of a number of hours, and shows
